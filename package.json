@@ -1,0 +1,71 @@
+{
+  "name": "@wafle/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for wafle — the LLM-first multi-tenant commerce platform. Wraps the wafle REST API and exposes ~50 tools to Claude Desktop, Claude Code, and any MCP-compatible client.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "wafle-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "ARCHITECTURE.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "start": "node dist/index.js",
+    "start:stdio": "node dist/index.js --transport=stdio",
+    "start:http": "node dist/index.js --transport=http",
+    "dev": "tsx src/index.ts",
+    "dev:stdio": "tsx src/index.ts --transport=stdio",
+    "dev:http": "tsx src/index.ts --transport=http",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage .tsbuildinfo"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "wafle",
+    "ecommerce",
+    "claude",
+    "anthropic",
+    "llm-first"
+  ],
+  "author": "wafle",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "fastify": "^5.1.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
+    "uuid": "^11.0.3",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.3",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "@vitest/coverage-v8": "^2.1.5",
+    "eslint": "^9.15.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}
