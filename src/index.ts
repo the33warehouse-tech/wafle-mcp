@@ -109,7 +109,7 @@ async function main(): Promise<void> {
     return;
   }
   if (args.version) {
-    process.stderr.write(`wafle-mcp 0.1.0\n`);
+    process.stderr.write(`wafle-mcp 0.2.0\n`);
     return;
   }
 

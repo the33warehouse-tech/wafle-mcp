@@ -2,13 +2,13 @@
 
 > The first MCP server for the wafle commerce platform. Lets Claude Desktop, Claude Code, agents, and any MCP-compatible client drive a wafle tenant — stores, products, orders, pricing, gateways, audiences, system — by talking to it.
 
-[![tests](https://img.shields.io/badge/tests-54%20passing-brightgreen)]() [![coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)]() [![tools](https://img.shields.io/badge/tools-63-blue)]()
+[![tests](https://img.shields.io/badge/tests-105%20passing-brightgreen)]() [![coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)]() [![tools](https://img.shields.io/badge/tools-68-blue)]() [![resources](https://img.shields.io/badge/resources-14-blue)]() [![prompts](https://img.shields.io/badge/prompts-5-blue)]()
 
 ---
 
 ## What this is
 
-Wafle is the LLM-first multi-tenant commerce platform. Its REST API at `https://wafle.click/wp-json/waffle/v1/` does the work; this MCP server exposes that work as **63 conversational tools** an LLM can pick from. Every wafle feature should land here as a tool first, UI second.
+Wafle is the LLM-first multi-tenant commerce platform. Its REST API at `https://wafle.click/wp-json/waffle/v1/` does the work; this MCP server exposes that work as **68 tools, 14 resources, and 5 server-defined prompts** an LLM can pick from. Every wafle feature should land here as a tool first, UI second.
 
 This is a thin, well-typed wrapper. No business logic lives in this package — bugs in pricing or order flow belong to the wafle backend.
 
@@ -117,7 +117,7 @@ For the deployed HTTP transport at `mcp.wafle.click`:
 }
 ```
 
-## Tool catalogue (63)
+## Tool catalogue (68)
 
 | Domain     | Tools |
 |------------|------|
@@ -135,18 +135,62 @@ For the deployed HTTP transport at `mcp.wafle.click`:
 | exports    | `wafle_exports_customers`, `_meta_audience`, `_google_ads` |
 | pixels     | `wafle_pixels_get`, `_set` |
 | system     | `wafle_system_health`, `_stores_health`, `_versions_list`, `_release_deploy`, `_release_rollback`, `_audit_query`, `_queue_stats`, `_queue_failed`, `_queue_retry` |
+| meta       | `wafle_resources_invalidate`, `wafle_prompts_list`, `wafle_products_sync_trigger_and_wait`, `wafle_csv_import`, `wafle_ads_sync_full` |
 
 Every tool has a markdown description with usage guidance, a Zod schema with `.describe()`-annotated fields, scope requirements, and `readOnlyHint`/`destructiveHint`/`idempotentHint` annotations to help the LLM pick wisely.
+
+The long-running tools (`_sync_trigger_and_wait`, `_csv_import`, `_ads_sync_full`) emit `notifications/progress` while polling — clients that support progress (Claude Desktop) show a live progress bar.
+
+## Resources (14)
+
+MCP Resources expose read-only context the LLM can pull in **without spending a tool call**. Reference them with `@<uri>` in Claude Desktop or by URI in any client.
+
+| URI | TTL | Purpose |
+|---|---|---|
+| `wafle://system/health` | 30s | Backend health snapshot. |
+| `wafle://system/scopes-catalog` | 1h | Catalog of every API scope (domain, tier, label). |
+| `wafle://docs/api-conventions` | 1h | REST canonical shapes. |
+| `wafle://docs/architecture` | 1h | Architecture overview. |
+| `wafle://stores` | 60s | Lean list of every store. |
+| `wafle://stores/{slug}` | 60s | Full store snapshot (settings + 7d KPIs + abandoned + last order). |
+| `wafle://stores/{slug}/orders/recent` | 30s | Last 20 orders with summary fields. |
+| `wafle://stores/{slug}/abandoned` | 60s | Top 20 abandoned carts. |
+| `wafle://stores/{slug}/analytics/7d` | 5min | 7-day analytics. |
+| `wafle://stores/{slug}/analytics/30d` | 5min | 30-day analytics. |
+| `wafle://stores/{slug}/products/sample` | 2min | Top 20 products. |
+| `wafle://stores/{slug}/email/segments` | 60s | Customer segments. |
+| `wafle://stores/{slug}/email/recent-campaigns` | 60s | Last 10 campaigns. |
+| `wafle://stores/{slug}/ads/connections` | 5min | Meta/Google/TikTok connection status. |
+
+Cache is in-memory per session, with TTL per resource. Manual invalidation: `wafle_resources_invalidate { uri_pattern }`. Long-running tools auto-invalidate the affected store.
+
+See [`docs/RESOURCES.md`](docs/RESOURCES.md) for full details and examples.
+
+## Prompts (5)
+
+Server-defined parametric workflows for the most common BATTO operations. The client surfaces a picker; pick → fill args → conversation starts with a fully-rendered plan.
+
+| Name | Use case |
+|---|---|
+| `onboarding_tienda_nueva` | End-to-end onboarding (store + MP + catalog + frontend API key). |
+| `pedido_enviar` | Mark order shipped with tracking + customer email. |
+| `segmentar_y_campania` | Build segment + create email campaign (immediate or scheduled). |
+| `conectar_meta_y_sync` | Connect Meta to a store + sync catalog to Commerce Manager. |
+| `debug_orden_fallida` | Diagnose failed payment + optionally retry via secondary gateway. |
+
+See [`docs/PROMPTS.md`](docs/PROMPTS.md) for argument schemas and example invocations.
 
 ## Conversational examples
 
 See `examples/prompts/`:
 
-- **abrir-tienda-nueva.md** — onboarding a new client end to end.
-- **marcar-pedido-enviado.md** — single-shot logistics action.
-- **exportar-audiencia-meta.md** — building a Meta audience from buyers ≥ $50k last month.
-- **analytics-comparativo.md** — Lensitive vs Gamerland last 30 days.
-- **listar-pedidos-pendientes.md** — quick triage of pending orders.
+- **01-onboarding-tienda-nueva.md** — onboarding a new client end to end.
+- **02-pedido-enviar.md** — single-shot logistics action.
+- **03-segmentar-y-campania.md** — segment + campaign.
+- **04-conectar-meta-y-sync.md** — connect Meta + catalog sync.
+- **05-debug-orden-fallida.md** — payment failure diagnosis.
+
+The 5 prompts above are converted to server-defined MCP prompts in `src/prompts/`.
 
 ## Scopes
 

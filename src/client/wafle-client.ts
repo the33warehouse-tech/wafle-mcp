@@ -86,7 +86,7 @@ export class WafleClient {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.apiKey = opts.apiKey;
     this.timeoutMs = opts.timeoutMs ?? 30_000;
-    this.userAgent = opts.userAgent ?? "wafle-mcp/0.1";
+    this.userAgent = opts.userAgent ?? "wafle-mcp/0.2";
     this.maxRetries = opts.maxRetries ?? 3;
     this.log = opts.logger ?? childLogger({ component: "wafle-client" });
     this.fetchImpl = opts.fetchImpl ?? fetch;

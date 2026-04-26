@@ -1,6 +1,6 @@
 {
   "name": "@wafle/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for wafle — the LLM-first multi-tenant commerce platform. Wraps the wafle REST API and exposes ~50 tools to Claude Desktop, Claude Code, and any MCP-compatible client.",
   "type": "module",
   "main": "dist/index.js",
