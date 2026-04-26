@@ -79,7 +79,7 @@ export class ToolRegistry {
       ? zodToJsonSchema(tool.outputSchema, { $refStrategy: "none", target: "openApi3" })
       : undefined;
 
-    const log = child({ tool: tool.name });
+    const log = (this.ctx.log?.child?.({ tool: tool.name }) ?? child({ tool: tool.name })) as Log;
     const ctx: ToolContext = { ...this.ctx, log };
 
     const registered: RegisteredTool = {
