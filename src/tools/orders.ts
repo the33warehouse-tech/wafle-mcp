@@ -51,6 +51,7 @@ export const ordersTools: WafleTool[] = [
     name: "wafle_orders_create",
     description:
       "Manually create an order. Use only for migrations or telephone sales — normal orders flow from the storefront.\n\n" +
+      "Body uses canonical snake_case shape: items[]+payment_method+gateway_id (see waffle-docs/API-CONVENTIONS.md).\n" +
       "Idempotency-Key header is auto-set; safe to retry on transient errors.",
     inputSchema: z.object({
       slug: StoreSlug,
@@ -66,6 +67,7 @@ export const ordersTools: WafleTool[] = [
           city: z.string(),
           province: z.string().optional(),
           postalCode: z.string().optional(),
+          method: z.string().optional().describe("Shipping method slug, e.g. 'andreani', 'retiro'."),
         })
         .optional(),
       items: z
@@ -74,13 +76,32 @@ export const ordersTools: WafleTool[] = [
             sku: z.string(),
             name: z.string().optional(),
             quantity: z.number().int().positive().default(1),
-            price: z.number().nonnegative().optional(),
+            unit_price: z
+              .number()
+              .nonnegative()
+              .optional()
+              .describe("Per-unit price in major units (ARS) — same currency as the store."),
+            product_id: z
+              .number()
+              .int()
+              .nonnegative()
+              .optional()
+              .describe("Optional WC product id to bind the line to."),
           }),
         )
         .min(1),
-      paymentMethod: z.enum(["mp", "stripe", "transfer", "manual"]).default("manual"),
-      currency: z.string().length(3).optional(),
-      note: z.string().optional(),
+      payment_method: z
+        .enum(["mp", "stripe", "transfer", "cash"])
+        .default("transfer")
+        .describe("Payment method routing — wafle picks the matching gateway unless gateway_id is set."),
+      gateway_id: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Explicit gateway id — overrides payment_method routing."),
+      coupon_code: z.string().optional(),
+      metadata: z.record(z.unknown()).optional(),
     }),
     scopes: ["orders:write"],
     annotations: { destructiveHint: false, idempotentHint: false },

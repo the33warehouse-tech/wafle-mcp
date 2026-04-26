@@ -81,6 +81,32 @@ describe("orders tools (critical path)", () => {
     expect(m.calls[0]!.url).toMatch(/page=2/);
   });
 
+  it("wafle_orders_create POSTs canonical snake_case shape (items[] + payment_method)", async () => {
+    const { m, registry } = setup();
+    m.push({ body: { order_id: 123, status: "pending" } });
+    await registry.get("wafle_orders_create")!.run({
+      slug: "gamerland",
+      customer: { email: "x@y.com", firstName: "Foo" },
+      items: [{ sku: "X-1", name: "Test", quantity: 2, unit_price: 1500, product_id: 7 }],
+      payment_method: "transfer",
+      gateway_id: 9,
+    });
+    expect(m.calls[0]!.method).toBe("POST");
+    expect(m.calls[0]!.url).toMatch(/\/stores\/gamerland\/orders$/);
+    const body = JSON.parse(m.calls[0]!.body!);
+    // Canonical snake_case fields are forwarded.
+    expect(body.items).toBeDefined();
+    expect(body.items[0].quantity).toBe(2);
+    expect(body.items[0].unit_price).toBe(1500);
+    expect(body.items[0].product_id).toBe(7);
+    expect(body.payment_method).toBe("transfer");
+    expect(body.gateway_id).toBe(9);
+    // No legacy keys leaked.
+    expect(body.cart).toBeUndefined();
+    expect(body.payment).toBeUndefined();
+    expect(body.paymentMethod).toBeUndefined();
+  });
+
   it("wafle_orders_ship POSTs to /ship with carrier+tracking", async () => {
     const { m, registry } = setup();
     m.push({ body: { ok: true, status: "shipped" } });
