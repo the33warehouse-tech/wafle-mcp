@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "wafle": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/wafle-mcp/dist/index.js",
+        "--transport=stdio"
+      ],
+      "env": {
+        "WAFLE_API_URL": "https://wafle.click/wp-json/waffle/v1",
+        "WAFLE_API_KEY": "REPLACE_WITH_YOUR_WAFLE_ADMIN_KEY",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}

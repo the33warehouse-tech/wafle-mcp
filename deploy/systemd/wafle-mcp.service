@@ -1,0 +1,30 @@
+[Unit]
+Description=wafle MCP server (Streamable HTTP transport)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wafle
+Group=wafle
+WorkingDirectory=/opt/wafle-mcp
+EnvironmentFile=/etc/wafle-mcp.env
+ExecStart=/usr/bin/node /opt/wafle-mcp/dist/index.js --transport=http
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/wafle-mcp/tmp
+LimitNOFILE=65535
+
+# Logs to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=wafle-mcp
+
+[Install]
+WantedBy=multi-user.target

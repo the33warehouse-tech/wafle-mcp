@@ -1,0 +1,25 @@
+services:
+  wafle-mcp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: wafle-mcp:0.1.0
+    container_name: wafle-mcp
+    restart: unless-stopped
+    environment:
+      WAFLE_API_URL: ${WAFLE_API_URL:-https://wafle.click/wp-json/waffle/v1}
+      WAFLE_API_KEY: ${WAFLE_API_KEY:?WAFLE_API_KEY is required}
+      WAFLE_TIMEOUT_MS: ${WAFLE_TIMEOUT_MS:-30000}
+      WAFLE_MCP_HTTP_HOST: 0.0.0.0
+      WAFLE_MCP_HTTP_PORT: 7100
+      WAFLE_MCP_TOKENS: ${WAFLE_MCP_TOKENS:?WAFLE_MCP_TOKENS is required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:7100:7100"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7100/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
