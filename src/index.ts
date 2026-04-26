@@ -69,21 +69,35 @@ async function detectScopes(client: WafleClient, log: ReturnType<typeof getLogge
     const me = (await client.get<{
       ok?: boolean;
       type?: string;
-      scopes?: Scope[] | string[];
+      is_master?: boolean;
+      scopes?: string[];
     }>("/auth/me")) ?? {};
-    if (Array.isArray(me.scopes) && me.scopes.length) {
-      const granted = expandGranted(me.scopes as Scope[]);
-      log.info({ count: granted.size, type: me.type }, "scopes detected from /auth/me");
-      return granted;
-    }
-    if (me.type === "master") {
-      log.info({ type: me.type }, "master key detected — granting all scopes");
+    const isMaster = me.is_master === true || me.type === "master";
+    const hasWildcard = Array.isArray(me.scopes) && me.scopes.includes("*");
+    if (isMaster || hasWildcard) {
+      log.info({ master: isMaster, wildcard: hasWildcard }, "master/wildcard key detected — granting all scopes");
       return expandGranted(ALL_SCOPES);
     }
-    log.warn({ me }, "wafle /auth/me did not return scopes; falling back to ALL_SCOPES (warn-mode)");
-    return null; // null = warn-mode: skip scope checks entirely
+    if (Array.isArray(me.scopes) && me.scopes.length) {
+      // Filter out unknown scopes (forward-compat: wafle may add new scopes faster than us).
+      const known: Scope[] = [];
+      const unknown: string[] = [];
+      const allSet = new Set<string>(ALL_SCOPES);
+      for (const s of me.scopes) {
+        if (allSet.has(s)) known.push(s as Scope);
+        else unknown.push(s);
+      }
+      if (unknown.length) {
+        log.warn({ unknown }, "wafle /auth/me returned unknown scope names — ignoring them");
+      }
+      const granted = expandGranted(known);
+      log.info({ count: granted.size }, "scopes detected from /auth/me");
+      return granted;
+    }
+    log.warn({ me }, "wafle /auth/me did not return scopes; running in warn-mode (no scope checks)");
+    return null;
   } catch (err) {
-    log.error({ err: (err as Error).message }, "wafle /auth/me failed during scope detection");
+    log.error({ err: (err as Error).message }, "wafle /auth/me failed during scope detection — warn-mode");
     return null;
   }
 }
