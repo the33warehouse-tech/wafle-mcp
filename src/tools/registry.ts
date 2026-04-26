@@ -12,13 +12,26 @@ import { WafleClient } from "../client/wafle-client.js";
 import { WafleApiError } from "../client/errors.js";
 import type { Scope } from "../auth/scopes.js";
 import { expandGranted } from "../auth/scopes.js";
+import type { ResourceRegistry } from "../resources/registry.js";
 import { type Log, child } from "../logging.js";
+
+/** Per-call extras: progress emission, etc. Optional — most tools ignore. */
+export interface ToolRunExtras {
+  /** Send a `notifications/progress` for the current request. */
+  sendNotification?: (notification: unknown) => Promise<void>;
+  /** The progress token attached to the request, if any. */
+  progressToken?: string | number;
+}
 
 export interface ToolContext {
   client: WafleClient;
   log: Log;
   /** Scopes the upstream wafle key has. If `null`, all scopes assumed (warn-mode). */
   grantedScopes: Set<Scope> | null;
+  /** Optional resource registry — long-running tools may invalidate cache after mutations. */
+  resources?: ResourceRegistry;
+  /** Per-call extras. Filled in by the registry at run time. Use it to emit progress. */
+  extras?: ToolRunExtras;
 }
 
 export interface WafleToolAnnotations {
@@ -48,7 +61,10 @@ export interface RegisteredTool {
   outputSchemaJson?: ReturnType<typeof zodToJsonSchema>;
   scopes: Scope[];
   annotations: WafleToolAnnotations;
-  run: (rawInput: unknown) => Promise<{ content: ToolContent[]; isError: boolean; structuredContent?: unknown }>;
+  run: (
+    rawInput: unknown,
+    extras?: ToolRunExtras,
+  ) => Promise<{ content: ToolContent[]; isError: boolean; structuredContent?: unknown }>;
 }
 
 export type ToolContent =
@@ -89,7 +105,7 @@ export class ToolRegistry {
       ...(outputSchemaJson ? { outputSchemaJson } : {}),
       scopes: tool.scopes,
       annotations: tool.annotations ?? {},
-      run: async (rawInput: unknown) => {
+      run: async (rawInput: unknown, extras?: ToolRunExtras) => {
         // Validate input.
         const parsed = tool.inputSchema.safeParse(rawInput ?? {});
         if (!parsed.success) {
@@ -122,7 +138,8 @@ export class ToolRegistry {
         }
 
         try {
-          const out = await tool.handler(parsed.data, ctx);
+          const callCtx: ToolContext = extras ? { ...ctx, extras } : ctx;
+          const out = await tool.handler(parsed.data, callCtx);
           return {
             isError: false,
             content: [{ type: "text", text: stringifyForLLM(out) }],
