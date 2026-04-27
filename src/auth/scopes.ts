@@ -45,7 +45,10 @@ export type Scope =
   | "agents:admin"
   | "domains:read"
   | "domains:write"
-  | "domains:admin";
+  | "domains:admin"
+  | "ads:read"
+  | "ads:connect"
+  | "ads:write";
 
 export const ALL_SCOPES: Scope[] = [
   "auth:read",
@@ -87,6 +90,9 @@ export const ALL_SCOPES: Scope[] = [
   "domains:read",
   "domains:write",
   "domains:admin",
+  "ads:read",
+  "ads:connect",
+  "ads:write",
 ];
 
 /**
@@ -116,6 +122,8 @@ const IMPLICATIONS: Record<string, Scope[]> = {
   "agents:write": ["agents:read"],
   "domains:admin": ["domains:write", "domains:read"],
   "domains:write": ["domains:read"],
+  "ads:write": ["ads:read"],
+  "ads:connect": ["ads:read"],
 };
 
 export function expandGranted(granted: Scope[]): Set<Scope> {

@@ -20,6 +20,7 @@ import { metaTools } from "./meta.js";
 import { aiTools } from "./ai.js";
 import { agentsTools } from "./agents.js";
 import { domainsTools } from "./domains.js";
+import { adsWriterTools } from "./ads-writer.js";
 
 export function createRegistry(ctx: ToolContext): ToolRegistry {
   const registry = new ToolRegistry(ctx);
@@ -42,6 +43,7 @@ export function createRegistry(ctx: ToolContext): ToolRegistry {
     ...aiTools,
     ...agentsTools,
     ...domainsTools,
+    ...adsWriterTools,
   ];
   for (const t of all) registry.register(t);
   return registry;
