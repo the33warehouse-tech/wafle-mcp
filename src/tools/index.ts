@@ -18,6 +18,7 @@ import { pixelsTools } from "./pixels.js";
 import { systemTools } from "./system.js";
 import { metaTools } from "./meta.js";
 import { aiTools } from "./ai.js";
+import { agentsTools } from "./agents.js";
 import { domainsTools } from "./domains.js";
 
 export function createRegistry(ctx: ToolContext): ToolRegistry {
@@ -39,6 +40,7 @@ export function createRegistry(ctx: ToolContext): ToolRegistry {
     ...systemTools,
     ...metaTools,
     ...aiTools,
+    ...agentsTools,
     ...domainsTools,
   ];
   for (const t of all) registry.register(t);

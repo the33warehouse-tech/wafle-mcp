@@ -40,6 +40,9 @@ export type Scope =
   | "system:admin"
   | "ai:use"
   | "ai:admin"
+  | "agents:read"
+  | "agents:write"
+  | "agents:admin"
   | "domains:read"
   | "domains:write"
   | "domains:admin";
@@ -78,6 +81,9 @@ export const ALL_SCOPES: Scope[] = [
   "system:admin",
   "ai:use",
   "ai:admin",
+  "agents:read",
+  "agents:write",
+  "agents:admin",
   "domains:read",
   "domains:write",
   "domains:admin",
@@ -106,6 +112,8 @@ const IMPLICATIONS: Record<string, Scope[]> = {
   "system:admin": ["system:write", "system:read"],
   "system:write": ["system:read"],
   "ai:admin": ["ai:use"],
+  "agents:admin": ["agents:write", "agents:read"],
+  "agents:write": ["agents:read"],
   "domains:admin": ["domains:write", "domains:read"],
   "domains:write": ["domains:read"],
 };
