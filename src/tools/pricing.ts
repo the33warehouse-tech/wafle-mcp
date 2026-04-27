@@ -14,7 +14,7 @@ export const pricingTools: WafleTool[] = [
     scopes: ["pricing:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/pricing/rules`),
+      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/v2/pricing-rules`),
   },
   {
     name: "wafle_pricing_rules_create",
@@ -42,7 +42,7 @@ export const pricingTools: WafleTool[] = [
     annotations: { idempotentHint: false },
     handler: async (input, ctx) => {
       const { slug, ...body } = input;
-      return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/pricing/rules`, body);
+      return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/v2/pricing-rules`, body);
     },
   },
   {
@@ -60,7 +60,7 @@ export const pricingTools: WafleTool[] = [
     handler: async (input, ctx) => {
       const { slug, rule_id, ...body } = input;
       return ctx.client.patch<unknown>(
-        `/stores/${encodeURIComponent(slug)}/pricing/rules/${rule_id}`,
+        `/stores/${encodeURIComponent(slug)}/v2/pricing-rules/${rule_id}`,
         body,
       );
     },
@@ -73,7 +73,7 @@ export const pricingTools: WafleTool[] = [
     annotations: { destructiveHint: true, idempotentHint: true },
     handler: async (input, ctx) =>
       ctx.client.delete<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/pricing/rules/${input.rule_id}`,
+        `/stores/${encodeURIComponent(input.slug)}/v2/pricing-rules/${input.rule_id}`,
       ),
   },
   {
