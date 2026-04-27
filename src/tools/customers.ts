@@ -31,7 +31,7 @@ export const customersTools: WafleTool[] = [
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) =>
       ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/customers/${encodeURIComponent(input.email)}`,
+        `/stores/${encodeURIComponent(input.slug)}/customers/${encodeURIComponent(input.email)}/360`,
       ),
   },
   {
