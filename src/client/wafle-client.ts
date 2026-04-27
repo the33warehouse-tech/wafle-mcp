@@ -159,8 +159,24 @@ export class WafleClient {
           try {
             parsed = JSON.parse(text);
           } catch {
-            // Some endpoints (e.g. CSV exports) return non-JSON. Pass through as text.
-            parsed = text;
+            // The waffle backend currently prepends a stray bash error line
+            // ("/etc/bash.bashrc: line 74: syntax error...") before the JSON
+            // body. Recover by stripping anything before the first `{` or `[`
+            // and retrying. If that still fails, pass through as raw text
+            // (genuine non-JSON endpoints, e.g. CSV exports, rely on this).
+            const firstBrace = text.indexOf("{");
+            const firstBracket = text.indexOf("[");
+            const candidates = [firstBrace, firstBracket].filter((i) => i >= 0);
+            const start = candidates.length > 0 ? Math.min(...candidates) : -1;
+            if (start > 0) {
+              try {
+                parsed = JSON.parse(text.slice(start));
+              } catch {
+                parsed = text;
+              }
+            } else {
+              parsed = text;
+            }
           }
         }
 

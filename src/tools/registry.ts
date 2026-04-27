@@ -140,10 +140,18 @@ export class ToolRegistry {
         try {
           const callCtx: ToolContext = extras ? { ...ctx, extras } : ctx;
           const out = await tool.handler(parsed.data, callCtx);
+          // MCP spec: `structuredContent` MUST be a JSON object (record).
+          // Wrap arrays / primitives so we never violate the schema and the
+          // SDK doesn't reject the whole call. Plain text always lives in
+          // `content[0].text` — agents and humans can read it from there.
+          const structured =
+            out !== null && typeof out === "object" && !Array.isArray(out)
+              ? (out as Record<string, unknown>)
+              : { value: out };
           return {
             isError: false,
             content: [{ type: "text", text: stringifyForLLM(out) }],
-            structuredContent: out as unknown,
+            structuredContent: structured,
           };
         } catch (err) {
           if (err instanceof WafleApiError) {
