@@ -21,11 +21,13 @@ import { aiTools } from "./ai.js";
 import { agentsTools } from "./agents.js";
 import { domainsTools } from "./domains.js";
 import { adsWriterTools } from "./ads-writer.js";
+import { usersTools } from "./users.js";
 
 export function createRegistry(ctx: ToolContext): ToolRegistry {
   const registry = new ToolRegistry(ctx);
   const all: WafleTool[] = [
     ...authTools,
+    ...usersTools,
     ...storesTools,
     ...productsTools,
     ...pricingTools,

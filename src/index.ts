@@ -114,10 +114,15 @@ async function main(): Promise<void> {
   }
 
   const log = getLogger();
-  const apiKey = process.env["WAFLE_API_KEY"];
+  // Auth resolution: prefer the new humans-flow session token (`WAFLE_USER_SESSION`)
+  // when present, fall back to the legacy `WAFLE_API_KEY`. Both are routed by
+  // WafleClient: session tokens go via Authorization: Bearer …, API keys via
+  // X-Wafle-Admin-Key.
+  const sessionToken = process.env["WAFLE_USER_SESSION"];
+  const apiKey = sessionToken && sessionToken.length > 0 ? sessionToken : process.env["WAFLE_API_KEY"];
   const apiUrl = process.env["WAFLE_API_URL"] ?? "https://wafle.click/wp-json/waffle/v1";
   if (!apiKey) {
-    log.fatal("WAFLE_API_KEY is required");
+    log.fatal("Either WAFLE_USER_SESSION or WAFLE_API_KEY is required");
     process.exit(2);
   }
   const timeoutMs = Number(process.env["WAFLE_TIMEOUT_MS"] ?? 30_000);

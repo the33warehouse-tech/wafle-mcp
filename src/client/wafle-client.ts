@@ -122,10 +122,22 @@ export class WafleClient {
     const maxRetries = opts.maxRetries ?? this.maxRetries;
     const timeoutMs = opts.timeoutMs ?? this.timeoutMs;
 
+    // Auth header routing:
+    //   - Session tokens (wfl_session_*) and refresh tokens MUST go via
+    //     `Authorization: Bearer …` because the wafle-core users module
+    //     routes session tokens that way.
+    //   - Legacy admin/store API keys go via `X-Wafle-Admin-Key` (also
+    //     accepted as Bearer by the enforcer, but we keep the historical
+    //     header for compatibility).
+    const isSessionToken = this.apiKey.startsWith("wfl_session_") ||
+      this.apiKey.startsWith("wfl_refresh_");
+    const authHeaders: Record<string, string> = isSessionToken
+      ? { Authorization: `Bearer ${this.apiKey}` }
+      : { "X-Wafle-Admin-Key": this.apiKey };
     const headers: Record<string, string> = {
       Accept: "application/json",
       "User-Agent": this.userAgent,
-      "X-Wafle-Admin-Key": this.apiKey,
+      ...authHeaders,
       ...(opts.headers ?? {}),
     };
     if (body !== undefined && body !== null) {
