@@ -21,6 +21,7 @@ import { aiTools } from "./ai.js";
 import { agentsTools } from "./agents.js";
 import { domainsTools } from "./domains.js";
 import { adsWriterTools } from "./ads-writer.js";
+import { adsOpsTools } from "./ads-ops.js";
 import { usersTools } from "./users.js";
 
 export function createRegistry(ctx: ToolContext): ToolRegistry {
@@ -46,6 +47,7 @@ export function createRegistry(ctx: ToolContext): ToolRegistry {
     ...agentsTools,
     ...domainsTools,
     ...adsWriterTools,
+    ...adsOpsTools,
   ];
   for (const t of all) registry.register(t);
   return registry;
