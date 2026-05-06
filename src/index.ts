@@ -7,13 +7,16 @@
  *   wafle-mcp --transport=http    (Fastify on $WAFLE_MCP_HTTP_PORT, default 7100)
  *
  * Environment
- *   WAFLE_API_URL          REST base, default https://wafle.click/wp-json/waffle/v1
- *   WAFLE_API_KEY          REQUIRED. Sent as X-Wafle-Admin-Key.
- *   WAFLE_TIMEOUT_MS       upstream timeout, default 30000
- *   WAFLE_MCP_HTTP_HOST    bind host for http transport, default 0.0.0.0
- *   WAFLE_MCP_HTTP_PORT    bind port for http transport, default 7100
- *   WAFLE_MCP_TOKENS       comma-separated bearer tokens for http clients
- *   LOG_LEVEL              pino level, default info
+ *   WAFLE_API_URL              REST base, default https://wafle.click/wp-json/waffle/v1
+ *   WAFLE_API_KEY              REQUIRED. Sent as X-Wafle-Admin-Key (legacy / admin tier).
+ *   WAFLE_TIMEOUT_MS           upstream timeout, default 30000
+ *   WAFLE_MCP_HTTP_HOST        bind host for http transport, default 0.0.0.0
+ *   WAFLE_MCP_HTTP_PORT        bind port for http transport, default 7100
+ *   WAFLE_MCP_TOKENS           comma-separated admin-tier bearer tokens (legacy fallback)
+ *   WAFLE_MCP_JWT_SECRET       HS256 secret for verifying tenant-scoped JWTs (issued by
+ *                              wafle backend). When set, JWT auth is enabled.
+ *   WAFLE_MCP_REQUIRE_JWT      "1" to refuse the legacy bearer fallback (recommended in prod).
+ *   LOG_LEVEL                  pino level, default info
  */
 import process from "node:process";
 import { WafleClient } from "./client/wafle-client.js";
@@ -137,23 +140,37 @@ async function main(): Promise<void> {
   const grantedScopes = await detectScopes(client, log);
 
   if (args.transport === "stdio") {
-    const { server } = buildServer({ client, logger: log, grantedScopes });
+    // stdio runs single-user with no tenant binding (admin-tier).
+    const { server } = buildServer({ client, logger: log, grantedScopes, tenantAuth: null });
     await startStdio(server, log);
   } else {
     const host = process.env["WAFLE_MCP_HTTP_HOST"] ?? "0.0.0.0";
     const port = Number(process.env["WAFLE_MCP_HTTP_PORT"] ?? 7100);
     const validator = makeValidator(process.env["WAFLE_MCP_TOKENS"]);
-    if (!validator.enabled) {
+    const jwtSecret = process.env["WAFLE_MCP_JWT_SECRET"] ?? "";
+    const requireJwt = process.env["WAFLE_MCP_REQUIRE_JWT"] === "1";
+    if (!jwtSecret && !validator.enabled) {
       log.warn(
-        "WAFLE_MCP_TOKENS is empty — HTTP transport will refuse all traffic. Set tokens before exposing.",
+        "Neither WAFLE_MCP_JWT_SECRET nor WAFLE_MCP_TOKENS is set — HTTP transport will refuse all traffic.",
+      );
+    } else if (!jwtSecret) {
+      log.warn(
+        "WAFLE_MCP_JWT_SECRET not set — HTTP transport will only accept legacy admin-tier bearers from WAFLE_MCP_TOKENS.",
+      );
+    } else if (!requireJwt && validator.enabled) {
+      log.warn(
+        "WAFLE_MCP_REQUIRE_JWT not set — legacy admin bearers from WAFLE_MCP_TOKENS still accepted as fallback. Set WAFLE_MCP_REQUIRE_JWT=1 in production.",
       );
     }
     await startHttp({
       host,
       port,
       validator,
+      jwtSecret,
+      requireJwt,
       logger: log,
-      buildServer: () => buildServer({ client, logger: log, grantedScopes }).server,
+      buildServer: (auth) =>
+        buildServer({ client, logger: log, grantedScopes, tenantAuth: auth }).server,
     });
   }
 }

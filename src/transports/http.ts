@@ -7,8 +7,12 @@
  * - DELETE /mcp      → terminate session
  * - GET  /healthz    → liveness probe
  *
- * Auth: Bearer token from `WAFLE_MCP_TOKENS` (comma-separated). Refuses
- * traffic if no tokens are configured, to avoid an accidental open relay.
+ * Auth: per-tenant JWTs (HS256, signed by the wafle backend with the shared
+ * `WAFLE_MCP_JWT_SECRET`) plus an admin-tier static bearer fallback (legacy
+ * `WAFLE_MCP_TOKENS`). The auth context is bound to the session at
+ * `initialize` time and re-validated on every subsequent request — if a
+ * token is rotated or revoked, in-flight sessions are dropped on the next
+ * call.
  */
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
@@ -16,23 +20,30 @@ import cors from "@fastify/cors";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { ClientAuthValidator } from "../auth/api-keys.js";
+import { authenticateRequest, type TenantAuth } from "../auth/tenant.js";
 import type { Log } from "../logging.js";
 
 export interface HttpServerOptions {
   host: string;
   port: number;
   validator: ClientAuthValidator;
+  /** Shared secret for HS256 JWT verification. Empty disables the JWT path. */
+  jwtSecret: string;
+  /** When true, refuse the legacy bearer fallback (recommended in prod). */
+  requireJwt: boolean;
   logger: Log;
-  buildServer: () => Server; // Factory, so each session gets a fresh Server.
+  /** Factory, so each session gets a fresh Server with its own auth context. */
+  buildServer: (auth: TenantAuth) => Server;
 }
 
 interface SessionEntry {
   server: Server;
   transport: StreamableHTTPServerTransport;
+  auth: TenantAuth;
 }
 
 export async function startHttp(opts: HttpServerOptions): Promise<FastifyInstance> {
-  const { host, port, validator, logger, buildServer } = opts;
+  const { host, port, validator, jwtSecret, requireJwt, logger, buildServer } = opts;
   const sessions = new Map<string, SessionEntry>();
 
   const fastify = Fastify({
@@ -48,18 +59,18 @@ export async function startHttp(opts: HttpServerOptions): Promise<FastifyInstanc
     credentials: false,
   });
 
-  function authenticate(req: FastifyRequest): { ok: true } | { ok: false; status: number; reason: string } {
-    if (!validator.enabled) {
-      return { ok: false, status: 503, reason: "MCP server has no bearer tokens configured (WAFLE_MCP_TOKENS empty); refusing traffic." };
-    }
-    const auth = req.headers["authorization"];
-    if (!auth || typeof auth !== "string") {
-      return { ok: false, status: 401, reason: "Missing Authorization: Bearer <token>" };
-    }
-    const m = /^Bearer\s+(.+)$/i.exec(auth);
-    if (!m || !m[1]) return { ok: false, status: 401, reason: "Malformed Authorization header" };
-    if (!validator.isValid(m[1])) return { ok: false, status: 403, reason: "Invalid bearer token" };
-    return { ok: true };
+  function authenticate(
+    req: FastifyRequest,
+  ): { ok: true; auth: TenantAuth } | { ok: false; status: number; reason: string } {
+    const authHeader = req.headers["authorization"];
+    const result = authenticateRequest({
+      authorization: typeof authHeader === "string" ? authHeader : undefined,
+      jwtSecret,
+      legacyValidator: validator,
+      requireJwt,
+    });
+    if (result.ok) return { ok: true, auth: result.auth };
+    return { ok: false, status: result.failure.status, reason: result.failure.reason };
   }
 
   fastify.get("/healthz", async () => ({ ok: true, sessions: sessions.size, ts: Date.now() }));
@@ -72,16 +83,43 @@ export async function startHttp(opts: HttpServerOptions): Promise<FastifyInstanc
 
   // Single endpoint per the Streamable HTTP spec: handles POST (RPC) + GET (SSE) + DELETE.
   const handleMcp = async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    const auth = authenticate(req);
-    if (!auth.ok) {
-      reply.code(auth.status).send({ jsonrpc: "2.0", error: { code: -32001, message: auth.reason }, id: null });
+    const authResult = authenticate(req);
+    if (!authResult.ok) {
+      reply.code(authResult.status).send({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: authResult.reason },
+        id: null,
+      });
       return;
     }
+    const auth = authResult.auth;
 
     const sessionIdRaw = req.headers["mcp-session-id"];
     const sessionId = Array.isArray(sessionIdRaw) ? sessionIdRaw[0] : sessionIdRaw;
 
     let entry: SessionEntry | undefined = sessionId ? sessions.get(sessionId) : undefined;
+
+    // Re-bind: the bearer presented on subsequent requests MUST match the
+    // tenant the session was opened with. This stops a session-id leak from
+    // being used by a different tenant's token.
+    if (entry) {
+      if (entry.auth.kind !== auth.kind || entry.auth.tenantSlug !== auth.tenantSlug) {
+        logger.warn(
+          {
+            sid: sessionId,
+            sessionTenant: entry.auth.tenantSlug,
+            requestTenant: auth.tenantSlug,
+          },
+          "mcp session token/tenant mismatch — closing session",
+        );
+        entry.transport.close().catch(() => undefined);
+        sessions.delete(sessionId!);
+        reply
+          .code(401)
+          .send({ jsonrpc: "2.0", error: { code: -32001, message: "Session tenant mismatch — re-initialize" }, id: null });
+        return;
+      }
+    }
 
     // POST /mcp with no session ID and an `initialize` request → create a new session.
     if (!entry) {
@@ -92,7 +130,10 @@ export async function startHttp(opts: HttpServerOptions): Promise<FastifyInstanc
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sid: string) => {
-          logger.info({ sid }, "mcp session initialized");
+          logger.info(
+            { sid, kind: auth.kind, tenantSlug: auth.tenantSlug, jti: auth.jti },
+            "mcp session initialized",
+          );
         },
       });
       transport.onclose = () => {
@@ -102,9 +143,9 @@ export async function startHttp(opts: HttpServerOptions): Promise<FastifyInstanc
         }
       };
 
-      const server = buildServer();
+      const server = buildServer(auth);
       await server.connect(transport);
-      entry = { server, transport };
+      entry = { server, transport, auth };
 
       // Pipe the request into the transport. When transport assigns a session id
       // (after `initialize`), persist into the map.

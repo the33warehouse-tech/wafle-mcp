@@ -10,6 +10,10 @@ const GatewayType = z.enum([
   "transfer",
 ]);
 
+// Gateways tools operate by `gateway_id` and `wafle_gateways_list` is a
+// global cross-tenant view. They are admin-only — per-tenant clients should
+// instead use `wafle_stores_get`/`wafle_stores_settings_update` to inspect
+// or change the gateway IDs their store points at.
 export const gatewaysTools: WafleTool[] = [
   {
     name: "wafle_gateways_list",
@@ -18,6 +22,7 @@ export const gatewaysTools: WafleTool[] = [
       "Use to audit which stores have which gateways configured. Secrets are NEVER returned (only `{set:true}` markers).",
     inputSchema: z.object({}),
     scopes: ["gateways:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (_input, ctx) => ctx.client.get<unknown>("/gateways"),
   },
@@ -40,6 +45,7 @@ export const gatewaysTools: WafleTool[] = [
       store_slug: z.string().optional().describe("Optional: associate the gateway with a store on creation."),
     }),
     scopes: ["gateways:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: false, idempotentHint: false },
     handler: async (input, ctx) => ctx.client.post<unknown>("/gateways", input),
   },
@@ -57,6 +63,7 @@ export const gatewaysTools: WafleTool[] = [
       description: z.string().optional(),
     }),
     scopes: ["gateways:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { idempotentHint: true },
     handler: async (input, ctx) => {
       const { gateway_id, ...body } = input;
@@ -70,6 +77,7 @@ export const gatewaysTools: WafleTool[] = [
       "Use after `wafle_gateways_create` or `wafle_gateways_update` (rotated creds). Read-only on the upstream provider.",
     inputSchema: z.object({ gateway_id: z.number().int().positive() }),
     scopes: ["gateways:write"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: false, idempotentHint: true },
     handler: async (input, ctx) =>
       ctx.client.post<unknown>(`/gateways/${input.gateway_id}/test`),
@@ -81,6 +89,7 @@ export const gatewaysTools: WafleTool[] = [
       "Destructive and irreversible. Confirm with the user.",
     inputSchema: z.object({ gateway_id: z.number().int().positive() }),
     scopes: ["gateways:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: true, idempotentHint: true },
     handler: async (input, ctx) => ctx.client.delete<unknown>(`/gateways/${input.gateway_id}`),
   },

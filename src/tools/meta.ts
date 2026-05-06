@@ -28,6 +28,7 @@ export const metaTools: WafleTool[] = [
       uri_pattern: z.string().optional().describe("Substring of the resource URI to drop (e.g. 'gamerland'). Omit to flush all."),
     }),
     scopes: ["system:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: false, idempotentHint: true, title: "Wafle: invalidate resource cache" },
     handler: async (input, ctx) => {
       if (!ctx.resources) {

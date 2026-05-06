@@ -83,7 +83,7 @@ export function signJwt(
   const headerObj = { alg: "HS256", typ: "JWT" };
   const iat = claims.iat ?? nowSec();
   const exp = claims.exp ?? iat + ttlSeconds;
-  const payload: JwtClaims = { ...claims, iat, exp };
+  const payload = { ...claims, iat, exp } as JwtClaims;
   const header = base64UrlEncode(Buffer.from(JSON.stringify(headerObj)));
   const body = base64UrlEncode(Buffer.from(JSON.stringify(payload)));
   const signingInput = `${header}.${body}`;

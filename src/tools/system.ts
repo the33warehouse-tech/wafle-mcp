@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { Pagination } from "../schemas/common.js";
 
+// All wafle_system_* tools are admin-only — they cross tenant boundaries
+// (audit log, queue, deploys) and must be hidden from per-tenant clients.
 export const systemTools: WafleTool[] = [
   {
     name: "wafle_system_health",
@@ -10,6 +12,7 @@ export const systemTools: WafleTool[] = [
       "Use as a cheap first call when something looks off in production.",
     inputSchema: z.object({}),
     scopes: ["system:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (_input, ctx) => ctx.client.get<unknown>("/health"),
   },
@@ -19,6 +22,7 @@ export const systemTools: WafleTool[] = [
       "Per-store health: products count, orders in last 24h, errors, gateway connectivity. Heavier than `wafle_system_health`.",
     inputSchema: z.object({}),
     scopes: ["system:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (_input, ctx) => ctx.client.get<unknown>("/health/stores"),
   },
@@ -28,6 +32,7 @@ export const systemTools: WafleTool[] = [
       "List the deployed versions of every wafle component (api, plugin, dashboard, themes). Use before deploying or rolling back.",
     inputSchema: z.object({}),
     scopes: ["system:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (_input, ctx) => ctx.client.get<unknown>("/system/versions"),
   },
@@ -41,6 +46,7 @@ export const systemTools: WafleTool[] = [
       version: z.string().min(1).describe("Version string, e.g. '0.1.5'."),
     }),
     scopes: ["system:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: true, idempotentHint: false },
     handler: async (input, ctx) => ctx.client.post<unknown>("/system/deploy", input),
   },
@@ -52,6 +58,7 @@ export const systemTools: WafleTool[] = [
       component: z.string().min(2),
     }),
     scopes: ["system:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: true, idempotentHint: false },
     handler: async (input, ctx) => ctx.client.post<unknown>("/system/rollback", input),
   },
@@ -70,6 +77,7 @@ export const systemTools: WafleTool[] = [
       to_ts: z.number().int().optional(),
     }),
     scopes: ["system:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => ctx.client.get<unknown>("/audit", { query: input }),
   },
@@ -80,6 +88,7 @@ export const systemTools: WafleTool[] = [
       "Use to debug 'why didn't my sync finish?' or to spot a backlog.",
     inputSchema: z.object({}),
     scopes: ["system:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (_input, ctx) => ctx.client.get<unknown>("/system/queue/stats"),
   },
@@ -90,6 +99,7 @@ export const systemTools: WafleTool[] = [
       limit: z.number().int().min(1).max(200).default(50),
     }),
     scopes: ["system:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => ctx.client.get<unknown>("/system/queue/failed", { query: input }),
   },
@@ -104,6 +114,7 @@ export const systemTools: WafleTool[] = [
       message: "Provide at least one of job_id, kind.",
     }),
     scopes: ["system:write"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: false, idempotentHint: true },
     handler: async (input, ctx) => ctx.client.post<unknown>("/system/queue/retry", input),
   },

@@ -19,13 +19,15 @@ export const authTools: WafleTool[] = [
     name: "wafle_auth_keys_list",
     description:
       "List API keys associated with the master account (or with a specific store, if the upstream key supports it).\n\n" +
-      "Returns prefix + scopes for each key. Full secrets are NEVER returned by wafle. Use to audit who has access.",
+      "Returns prefix + scopes for each key. Full secrets are NEVER returned by wafle. Use to audit who has access.\n\n" +
+      "Admin-only: tenant clients cannot enumerate API keys.",
     inputSchema: z
       .object({
         store_slug: z.string().optional().describe("Optional: filter to keys scoped to this store."),
       })
       .describe("Filter options."),
     scopes: ["auth:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) =>
       ctx.client.get<unknown>(input.store_slug ? `/auth/keys?store=${encodeURIComponent(input.store_slug)}` : "/auth/keys"),
@@ -35,7 +37,8 @@ export const authTools: WafleTool[] = [
     description:
       "Create a new wafle API key with the given scopes. Returns the secret ONCE — store it immediately.\n\n" +
       "Use when onboarding a new dashboard user, integration, or agent. Prefer narrowly-scoped keys.\n\n" +
-      "If the wafle backend has not yet implemented `/auth/keys POST`, this tool returns the upstream error untouched.",
+      "If the wafle backend has not yet implemented `/auth/keys POST`, this tool returns the upstream error untouched.\n\n" +
+      "Admin-only: tenant clients cannot mint API keys.",
     inputSchema: z
       .object({
         name: z.string().min(2).describe("Human-readable label, e.g. 'Vigía COO automation'."),
@@ -45,6 +48,7 @@ export const authTools: WafleTool[] = [
       })
       .describe("Key creation parameters."),
     scopes: ["auth:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
     handler: async (input, ctx) =>
       ctx.client.post<unknown>("/auth/keys", {

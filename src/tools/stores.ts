@@ -1,15 +1,18 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 export const storesTools: WafleTool[] = [
   {
     name: "wafle_stores_list",
     description:
       "List all wafle stores the configured key can see. Each store includes id, slug, name, domain, brand color, payment + shipping config, gateway IDs, and customer-service contacts.\n\n" +
-      "Use this as the first call when the user asks 'what stores does X have?' or before any per-store action — you'll need the slug.",
+      "Use this as the first call when the user asks 'what stores does X have?' or before any per-store action — you'll need the slug.\n\n" +
+      "Admin-only: per-tenant MCP clients only see their own store via `wafle_stores_get`.",
     inputSchema: z.object({}).describe("No parameters."),
     scopes: ["stores:read"],
+    requiredMcpScope: "mcp:admin",
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: list stores" },
     handler: async (_input, ctx) => ctx.client.get<unknown>("/stores"),
   },
@@ -18,10 +21,14 @@ export const storesTools: WafleTool[] = [
     description:
       "Fetch the full configuration of a single store. Includes payment gateway IDs (mp/stripe/transfer), shipping methods (andreani/oca/retiro), CBU/alias, social pixels, theme, abandoned-cart settings.\n\n" +
       "Use before editing settings — you need the current shape to send a delta.",
-    inputSchema: z.object({ slug: StoreSlug }),
+    inputSchema: z.object({ slug: StoreSlug.optional() }),
     scopes: ["stores:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) => ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}`);
+    },
   },
   {
     name: "wafle_stores_create",
@@ -43,6 +50,7 @@ export const storesTools: WafleTool[] = [
       })
       .describe("Store provisioning input."),
     scopes: ["stores:admin"],
+    requiredMcpScope: "mcp:admin",
     annotations: { destructiveHint: false, idempotentHint: false, title: "Wafle: create store" },
     handler: async (input, ctx) => ctx.client.post<unknown>("/stores", input),
   },
@@ -53,7 +61,7 @@ export const storesTools: WafleTool[] = [
       "Common edits: theme_color, domain, free_shipping_from, payment_methods, shipping_methods. To change pixel/marketing IDs use `wafle_pixels_set`.",
     inputSchema: z
       .object({
-        slug: StoreSlug,
+        slug: StoreSlug.optional(),
         name: z.string().min(2).optional(),
         domain: z.string().min(3).optional(),
         theme_color: z.string().optional(),
@@ -75,7 +83,9 @@ export const storesTools: WafleTool[] = [
     scopes: ["stores:write"],
     annotations: { idempotentHint: true, title: "Wafle: update store" },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _ignored, ...rest } = input;
       return ctx.client.patch<unknown>(`/stores/${encodeURIComponent(slug)}`, rest);
     },
   },
@@ -83,11 +93,13 @@ export const storesTools: WafleTool[] = [
     name: "wafle_stores_settings_get",
     description:
       "Alias of `wafle_stores_get` returning only the settings subtree (no items/orders). Convenient for review/diff workflows.",
-    inputSchema: z.object({ slug: StoreSlug }),
+    inputSchema: z.object({ slug: StoreSlug.optional() }),
     scopes: ["stores:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const data = await ctx.client.get<{ stores?: unknown }>(`/stores/${encodeURIComponent(input.slug)}`);
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const data = await ctx.client.get<{ stores?: unknown }>(`/stores/${encodeURIComponent(slug)}`);
       return data;
     },
   },
@@ -97,13 +109,16 @@ export const storesTools: WafleTool[] = [
       "Update the store's settings subtree (operationally identical to `wafle_stores_update` today; provided as a stable name for the future split).",
     inputSchema: z
       .object({
-        slug: StoreSlug,
+        slug: StoreSlug.optional(),
         settings: z.record(z.unknown()).describe("Object of fields to merge."),
       })
       .describe("Settings update payload."),
     scopes: ["stores:write"],
     annotations: { idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.patch<unknown>(`/stores/${encodeURIComponent(input.slug)}`, input.settings),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.patch<unknown>(`/stores/${encodeURIComponent(slug)}`, input.settings);
+    },
   },
 ];
