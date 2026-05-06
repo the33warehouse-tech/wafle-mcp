@@ -290,6 +290,91 @@ describe("pixels tools", () => {
   });
 });
 
+describe("ads ops tools (deep)", () => {
+  it("wafle_ads_breakdown_by_creative GETs /ads/breakdown/creative with query", async () => {
+    const { m, registry } = setup();
+    m.push({ body: { creatives: [] } });
+    const r = await registry
+      .get("wafle_ads_breakdown_by_creative")!
+      .run({ slug: "gamerland", campaign_id: "23859000111", range: "14d", min_spend_cents: 1000 });
+    expect(r.isError).toBe(false);
+    expect(m.calls[0]!.method).toBe("GET");
+    expect(m.calls[0]!.url).toMatch(/\/stores\/gamerland\/ads\/breakdown\/creative\?/);
+    expect(m.calls[0]!.url).toMatch(/range=14d/);
+    expect(m.calls[0]!.url).toMatch(/campaign_id=23859000111/);
+  });
+
+  it("wafle_ads_propose_pause_underperformers falls back to mock on 404", async () => {
+    const { m, registry } = setup();
+    m.push({ status: 404, body: { code: "not_found", message: "endpoint not implemented" } });
+    const r = await registry
+      .get("wafle_ads_propose_pause_underperformers")!
+      .run({ slug: "gamerland", threshold_roas: 1.5 });
+    expect(r.isError).toBe(false);
+    const out = r.structuredContent as Record<string, unknown>;
+    expect(out.mock).toBe(true);
+    expect(Array.isArray(out.proposals)).toBe(true);
+  });
+
+  it("wafle_ads_audience_overlap_check passes audience_ids array", async () => {
+    const { m, registry } = setup();
+    m.push({ body: { audiences: [], overlaps: [] } });
+    await registry
+      .get("wafle_ads_audience_overlap_check")!
+      .run({ slug: "gamerland", audience_ids: ["aaa", "bbb"], min_size: 500 });
+    expect(m.calls[0]!.method).toBe("GET");
+    expect(m.calls[0]!.url).toMatch(/\/stores\/gamerland\/ads\/audiences\/overlap/);
+    expect(m.calls[0]!.url).toMatch(/audience_ids=aaa/);
+    expect(m.calls[0]!.url).toMatch(/audience_ids=bbb/);
+  });
+
+  it("wafle_ads_creative_performance_log GETs the creative log path", async () => {
+    const { m, registry } = setup();
+    m.push({ body: { days: [] } });
+    await registry
+      .get("wafle_ads_creative_performance_log")!
+      .run({ slug: "gamerland", creative_id: "cr_42", since: "2026-04-01" });
+    expect(m.calls[0]!.url).toMatch(/\/ads\/creatives\/cr_42\/log\?/);
+    expect(m.calls[0]!.url).toMatch(/since=2026-04-01/);
+  });
+
+  it("wafle_ads_generate_report_monthly hits monthly endpoint then falls back to /marketing/profit", async () => {
+    const { m, registry } = setup();
+    // First call: monthly endpoint not yet implemented.
+    m.push({ status: 404, body: { code: "not_found" } });
+    // Second call: profit endpoint succeeds.
+    m.push({
+      body: { spend_cents: 1000, revenue_cents: 3000, profit_cents: 800, roas: 3.0 },
+    });
+    const r = await registry
+      .get("wafle_ads_generate_report_monthly")!
+      .run({ slug: "gamerland", month: "2026-04" });
+    expect(r.isError).toBe(false);
+    expect(m.calls.length).toBeGreaterThanOrEqual(2);
+    expect(m.calls[0]!.url).toMatch(/\/marketing\/report\/monthly\?month=2026-04/);
+    expect(m.calls[1]!.url).toMatch(/\/marketing\/profit\?/);
+    expect(m.calls[1]!.url).toMatch(/start=2026-04-01/);
+    expect(m.calls[1]!.url).toMatch(/end=2026-04-30/);
+  });
+
+  it("wafle_ads_compare_periods makes 2 profit calls and computes deltas", async () => {
+    const { m, registry } = setup();
+    m.push({ body: { spend_cents: 1200, revenue_cents: 3000, profit_cents: 600, conversions: 30, roas: 2.5, cpa_cents: 4000 } });
+    m.push({ body: { spend_cents: 1000, revenue_cents: 2000, profit_cents: 400, conversions: 20, roas: 2.0, cpa_cents: 5000 } });
+    const r = await registry.get("wafle_ads_compare_periods")!.run({
+      slug: "gamerland",
+      period_a: { month: "2026-04" },
+      period_b: { month: "2026-03" },
+    });
+    expect(r.isError).toBe(false);
+    expect(m.calls.length).toBe(2);
+    const out = r.structuredContent as Record<string, unknown>;
+    const metrics = out.metrics as Record<string, { period_a: number; period_b: number; delta_pct: number }>;
+    expect(metrics.spend_cents.delta_pct).toBeCloseTo(0.2, 5); // (1200-1000)/1000
+    expect(metrics.revenue_cents.delta_pct).toBeCloseTo(0.5, 5);
+  });
+});
+
 describe("registry total count", () => {
   it("registers >= 50 tools", () => {
     const { registry } = setup();
