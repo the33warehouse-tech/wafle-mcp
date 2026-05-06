@@ -12,6 +12,8 @@ import { WafleClient } from "../client/wafle-client.js";
 import { WafleApiError } from "../client/errors.js";
 import type { Scope } from "../auth/scopes.js";
 import { expandGranted } from "../auth/scopes.js";
+import type { TenantAuth } from "../auth/tenant.js";
+import { hasMcpScope } from "../auth/jwt.js";
 import type { ResourceRegistry } from "../resources/registry.js";
 import { type Log, child } from "../logging.js";
 
@@ -28,6 +30,12 @@ export interface ToolContext {
   log: Log;
   /** Scopes the upstream wafle key has. If `null`, all scopes assumed (warn-mode). */
   grantedScopes: Set<Scope> | null;
+  /**
+   * MCP-tier auth: who is calling, which tenant, which scopes. When `null`
+   * the server is running in stdio/admin mode (single-user) and tools default
+   * to admin-tier. HTTP transport always sets this.
+   */
+  tenantAuth?: TenantAuth | null;
   /** Optional resource registry — long-running tools may invalidate cache after mutations. */
   resources?: ResourceRegistry;
   /** Per-call extras. Filled in by the registry at run time. Use it to emit progress. */
@@ -50,6 +58,16 @@ export interface WafleTool<I extends ZodTypeAny = ZodTypeAny, O = unknown> {
   /** Optional output schema; advisory. */
   outputSchema?: ZodTypeAny;
   scopes: Scope[];
+  /**
+   * MCP-tier scope required to even *see* this tool in `tools/list` and to
+   * call it. Two values:
+   *   - "mcp:tools" (default) → any authenticated client (tenant or admin).
+   *   - "mcp:admin"           → only admin-tier callers (master MCP keys
+   *                              or JWTs that explicitly include "mcp:admin").
+   * Tools that operate cross-tenant (master/system/audit, cross-tenant
+   * stores listing, etc.) MUST set this to "mcp:admin".
+   */
+  requiredMcpScope?: "mcp:tools" | "mcp:admin";
   annotations?: WafleToolAnnotations;
   handler: (input: z.infer<I>, ctx: ToolContext) => Promise<O>;
 }
@@ -60,6 +78,7 @@ export interface RegisteredTool {
   inputSchemaJson: ReturnType<typeof zodToJsonSchema>;
   outputSchemaJson?: ReturnType<typeof zodToJsonSchema>;
   scopes: Scope[];
+  requiredMcpScope: "mcp:tools" | "mcp:admin";
   annotations: WafleToolAnnotations;
   run: (
     rawInput: unknown,
@@ -98,12 +117,15 @@ export class ToolRegistry {
     const log = (this.ctx.log?.child?.({ tool: tool.name }) ?? child({ tool: tool.name })) as Log;
     const ctx: ToolContext = { ...this.ctx, log };
 
+    const requiredMcpScope: "mcp:tools" | "mcp:admin" = tool.requiredMcpScope ?? "mcp:tools";
+
     const registered: RegisteredTool = {
       name: tool.name,
       description: tool.description,
       inputSchemaJson,
       ...(outputSchemaJson ? { outputSchemaJson } : {}),
       scopes: tool.scopes,
+      requiredMcpScope,
       annotations: tool.annotations ?? {},
       run: async (rawInput: unknown, extras?: ToolRunExtras) => {
         // Validate input.
@@ -120,7 +142,24 @@ export class ToolRegistry {
           };
         }
 
-        // Scope check.
+        // MCP-tier scope check (admin-only tools require "mcp:admin"). When
+        // tenantAuth is absent (stdio mode / tests) we treat the caller as
+        // admin-tier so single-user CLI workflows keep working.
+        if (ctx.tenantAuth) {
+          if (!hasMcpScope(ctx.tenantAuth.scopes, requiredMcpScope)) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text",
+                  text: `Tool ${tool.name} requires MCP scope '${requiredMcpScope}'. Your token has [${ctx.tenantAuth.scopes.join(", ")}]. Use a token issued with mcp:admin scope, or pick a tenant-scoped tool.`,
+                },
+              ],
+            };
+          }
+        }
+
+        // Wafle-key scope check.
         if (ctx.grantedScopes !== null) {
           for (const s of tool.scopes) {
             if (!ctx.grantedScopes.has(s)) {
@@ -179,6 +218,18 @@ export class ToolRegistry {
 
   list(): RegisteredTool[] {
     return Array.from(this.tools.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * List tools visible to a caller with the given MCP-tier scopes. Tools
+   * marked `requiredMcpScope:"mcp:admin"` are filtered out for non-admin
+   * callers, so a tenant client never even sees them in `tools/list`.
+   *
+   * Pass `null` for stdio/admin mode (sees everything).
+   */
+  listForCaller(callerScopes: string[] | null): RegisteredTool[] {
+    if (callerScopes === null) return this.list();
+    return this.list().filter((t) => hasMcpScope(callerScopes, t.requiredMcpScope));
   }
 
   get(name: string): RegisteredTool | undefined {

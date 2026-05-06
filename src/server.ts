@@ -20,6 +20,7 @@ import { ToolRegistry, type ToolContext } from "./tools/registry.js";
 import { createResourceRegistry, ResourceRegistry } from "./resources/index.js";
 import { createPromptRegistry, PromptRegistry } from "./prompts/index.js";
 import { ALL_SCOPES, expandGranted, type Scope } from "./auth/scopes.js";
+import type { TenantAuth } from "./auth/tenant.js";
 import { type Log, child } from "./logging.js";
 
 export interface BuildServerOptions {
@@ -27,6 +28,11 @@ export interface BuildServerOptions {
   logger: Log;
   /** If null, every scope is granted (warn-mode while wafle/auth/me lacks scopes). */
   grantedScopes: Set<Scope> | null;
+  /**
+   * MCP-tier auth: tenant binding + scopes. When null, the server runs in
+   * stdio/admin mode (single-user) and exposes all tools.
+   */
+  tenantAuth?: TenantAuth | null;
   serverName?: string;
   serverVersion?: string;
 }
@@ -40,10 +46,12 @@ export interface BuiltServer {
 
 export function buildServer(opts: BuildServerOptions): BuiltServer {
   const log = child({ component: "mcp-server" });
-  const sharedCtx: Pick<ToolContext, "client" | "log" | "grantedScopes"> = {
+  const tenantAuth = opts.tenantAuth ?? null;
+  const sharedCtx: Pick<ToolContext, "client" | "log" | "grantedScopes" | "tenantAuth"> = {
     client: opts.client,
     log: opts.logger,
     grantedScopes: opts.grantedScopes,
+    tenantAuth,
   };
   const resources = createResourceRegistry(sharedCtx);
   const prompts = createPromptRegistry();
@@ -66,7 +74,12 @@ export function buildServer(opts: BuildServerOptions): BuiltServer {
   // -------------- tools --------------
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const tools: McpTool[] = registry.list().map((t) => {
+    // Tenant clients never see admin-only tools; they're filtered server-side
+    // so the LLM doesn't even know they exist.
+    const visible = tenantAuth
+      ? registry.listForCaller(tenantAuth.scopes)
+      : registry.list();
+    const tools: McpTool[] = visible.map((t) => {
       const out: McpTool = {
         name: t.name,
         description: t.description,
@@ -78,7 +91,7 @@ export function buildServer(opts: BuildServerOptions): BuiltServer {
       }
       return out;
     });
-    log.debug({ count: tools.length }, "listTools");
+    log.debug({ count: tools.length, total: registry.size(), tenantSlug: tenantAuth?.tenantSlug ?? null }, "listTools");
     return { tools };
   });
 
@@ -92,7 +105,21 @@ export function buildServer(opts: BuildServerOptions): BuiltServer {
         content: [{ type: "text", text: `Unknown tool: ${name}` }],
       };
     }
-    log.info({ name }, "callTool");
+    // Tenant tokens cannot call admin-only tools, even if they discover
+    // the name out-of-band — return the same shape as `unknown tool` so we
+    // don't leak the existence of admin tools to non-admin clients.
+    if (
+      tenantAuth &&
+      tool.requiredMcpScope === "mcp:admin" &&
+      !tenantAuth.scopes.includes("mcp:admin")
+    ) {
+      log.warn({ name, tenantSlug: tenantAuth.tenantSlug }, "callTool admin-only denied");
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Unknown tool: ${name}` }],
+      };
+    }
+    log.info({ name, tenantSlug: tenantAuth?.tenantSlug ?? null }, "callTool");
     // Pass `sendNotification` and `_meta` through to long-running tools so
     // they can emit `notifications/progress`. Passed via the runtime extras
     // so simple tools can ignore them.
