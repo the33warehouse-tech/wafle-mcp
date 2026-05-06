@@ -7,6 +7,7 @@ import { storesTools } from "./stores.js";
 import { productsTools } from "./products.js";
 import { pricingTools } from "./pricing.js";
 import { ordersTools } from "./orders.js";
+import { checkoutTools } from "./checkout.js";
 import { customersTools } from "./customers.js";
 import { gatewaysTools } from "./gateways.js";
 import { shippingTools } from "./shipping.js";
@@ -33,6 +34,7 @@ export function createRegistry(ctx: ToolContext): ToolRegistry {
     ...productsTools,
     ...pricingTools,
     ...ordersTools,
+    ...checkoutTools,
     ...customersTools,
     ...gatewaysTools,
     ...shippingTools,
