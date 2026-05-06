@@ -27,18 +27,41 @@ Set environment variables (or copy `.env.example` to `.env`):
 
 ```bash
 WAFLE_API_URL=https://wafle.click/wp-json/waffle/v1   # default
-WAFLE_API_KEY=<your wafle admin key>                   # required
+WAFLE_API_KEY=<your wafle admin key>                   # required (upstream)
 WAFLE_TIMEOUT_MS=30000                                 # optional
 
 # Only used by --transport=http:
 WAFLE_MCP_HTTP_HOST=0.0.0.0
 WAFLE_MCP_HTTP_PORT=7100
-WAFLE_MCP_TOKENS=<comma-separated bearer tokens>       # required for HTTP
+
+# Tenant-scoped JWT auth (recommended). Same value as WAFFLE_MCP_JWT_SECRET
+# in the backend mu-plugin. Generate: openssl rand -hex 64
+WAFLE_MCP_JWT_SECRET=<shared HS256 secret>
+WAFLE_MCP_REQUIRE_JWT=1                                 # refuses legacy bearers in prod
+
+# Legacy admin-tier bearers (cross-tenant). Used as fallback when REQUIRE_JWT is unset.
+WAFLE_MCP_TOKENS=<comma-separated bearer tokens>
 
 LOG_LEVEL=info
 ```
 
-The `WAFLE_API_KEY` is sent as `X-Wafle-Admin-Key` to wafle. Use a master key for full access, or a per-store key for scoped tools.
+`WAFLE_API_KEY` is the upstream wafle key the MCP server uses to talk to the backend (master, scoped at the backend layer). Tenant isolation for the MCP itself is enforced by `WAFLE_MCP_JWT_SECRET` — the backend mints HS256 JWTs carrying `tenant_id + tenant_slug + scope`, and this server filters tools/list and rewrites every per-store call to the JWT's tenant. See `src/auth/jwt.ts`, `src/auth/tenant.ts`.
+
+### Tenant tokens
+
+Clients obtain a tenant-scoped JWT from the wafle backend:
+
+```
+POST /wp-json/waffle/v1/admin/account/mcp/issue-token
+X-Wafle-Admin-Key: <store key for that tenant>
+{ "ttl_days": 30 }
+```
+
+Response includes `{ token, jti, tenant_slug, expires_at, mcp_url }`. The client then sends `Authorization: Bearer <token>` to `mcp.wafle.click/mcp`. With this token:
+
+- `tools/list` only shows the tenant's tools — admin-only tools (`wafle_system_*`, `wafle_gateways_*`, `wafle_stores_list/create`, `wafle_auth_keys_*`) are filtered out server-side.
+- Every per-tenant tool ignores the `slug` argument and uses the JWT's `tenant_slug` instead. A token for tenant A cannot read or mutate tenant B regardless of arguments passed.
+- Tokens can be revoked via `POST /admin/account/mcp/revoke-token` (`{ jti }`) and listed via `GET /admin/account/mcp/tokens`.
 
 ## Run
 
