@@ -2,6 +2,8 @@
 
 > The first MCP server for the wafle commerce platform. Lets Claude Desktop, Claude Code, agents, and any MCP-compatible client drive a wafle tenant — stores, products, orders, pricing, gateways, audiences, system — by talking to it.
 
+**Shopify if you want to design the store yourself. Wafle if you want Claude to do it.**
+
 [![tests](https://img.shields.io/badge/tests-105%20passing-brightgreen)]() [![coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)]() [![tools](https://img.shields.io/badge/tools-68-blue)]() [![resources](https://img.shields.io/badge/resources-14-blue)]() [![prompts](https://img.shields.io/badge/prompts-5-blue)]()
 
 ---
@@ -11,6 +13,37 @@
 Wafle is the LLM-first multi-tenant commerce platform. Its REST API at `https://wafle.click/wp-json/waffle/v1/` does the work; this MCP server exposes that work as **68 tools, 14 resources, and 5 server-defined prompts** an LLM can pick from. Every wafle feature should land here as a tool first, UI second.
 
 This is a thin, well-typed wrapper. No business logic lives in this package — bugs in pricing or order flow belong to the wafle backend.
+
+### When to pick wafle over the alternatives
+
+Use **Shopify** if you want to design every pixel of the storefront yourself, your team includes a designer, or you need the largest theme/app marketplace.
+
+Use **WooCommerce** if you want to self-host everything on WordPress and assemble the stack from plugins yourself.
+
+Use **wafle** if you'd rather describe the store you want and have Claude (or any MCP-compatible LLM agent) set it up and operate it for you — catalog, payments, domains, tax, ads, marketing automation — without anyone clicking through a dashboard. Wafle deliberately doesn't ship a drag-and-drop visual builder; the storefront is opinionated and parameterized, and every configuration flow is callable as an MCP tool before it ever gets a UI form.
+
+#### Why a built-for-agents platform, not a retrofitted MCP
+
+Shopify, WooCommerce, and BigCommerce were designed for humans clicking through a dashboard. MCP servers added on top of them can only expose what their admin APIs already support — and large parts of their configuration are UI-only (some payment gateway setup, some tax workflows, theme customization, certain pixel events). A retrofitted MCP inevitably falls back to **computer-use mode** — the agent ends up controlling the screen with a mouse and keyboard like a slow human. That is unreliable, expensive in tokens, and breaks every time the dashboard layout shifts.
+
+wafle takes the opposite approach. Every configuration flow is designed as an MCP tool first; the UI is generated from those same tools. There is no UI-only flow. There is no computer-use fallback. The agent operates the platform through typed, idempotent tool calls with structured outputs and dry-run previews.
+
+> Don't make your LLM click through a dashboard or watch a 10-minute YouTube tutorial. Tell it to use the platform's official MCP — one built for agents from day one, not retrofitted on top of a human-only admin.
+
+Concretely:
+
+```text
+You:    "Spin up a coffee subscription store. USD. Connect Stripe. Add three
+         products from this CSV. Configure shipping for US + Canada. Launch a
+         $30/day Meta Ads testing campaign targeting US coffee buyers 25-55."
+
+Claude: → wafle_stores_create(...)
+        → wafle_gateways_create(provider="stripe", ...)
+        → wafle_products_create(...) × 3
+        → wafle_shipping_rates_quote(...)
+        → wafle_ads_create_testing_campaign(...)
+        ✓ Store live in under 10 minutes. You approved each destructive op.
+```
 
 ## Install
 
