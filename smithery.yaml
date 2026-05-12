@@ -1,0 +1,34 @@
+name: "@wafle/mcp"
+displayName: Wafle
+description: LLM-first ecommerce platform. MCP server exposing ~50 tools for agent-driven store setup and operations.
+icon: https://wafle.click/icon.png
+repository: https://github.com/wafle/wafle-mcp
+homepage: https://wafle.click
+license: MIT
+keywords:
+  - ecommerce
+  - commerce
+  - shopify-alternative
+  - woocommerce-alternative
+  - marketing
+  - ads
+  - stripe
+  - mercadopago
+  - meta-ads
+  - claude
+  - llm-first
+configSchema:
+  type: object
+  properties:
+    WAFLE_API_KEY:
+      type: string
+      title: Wafle API Key
+      description: Get yours at https://wafle.click/dashboard/api-keys
+      format: password
+    WAFLE_API_BASE:
+      type: string
+      title: API base URL
+      description: Defaults to https://wafle.click/api. Override for staging.
+      default: https://wafle.click/api
+  required:
+    - WAFLE_API_KEY
