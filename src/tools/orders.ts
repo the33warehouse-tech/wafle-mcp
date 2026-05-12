@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug, Pagination } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const OrderStatus = z.enum([
   "pending",
@@ -31,7 +32,9 @@ export const ordersTools: WafleTool[] = [
     scopes: ["orders:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/orders`, { query: rest });
     },
   },
@@ -42,10 +45,13 @@ export const ordersTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, order_id: z.number().int().positive() }),
     scopes: ["orders:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/orders/${input.order_id}`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/orders/${input.order_id}`,
+      );
+    },
   },
   {
     name: "wafle_orders_create",
@@ -106,7 +112,9 @@ export const ordersTools: WafleTool[] = [
     scopes: ["orders:write"],
     annotations: { destructiveHint: false, idempotentHint: false },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/orders`, body);
     },
   },
@@ -126,7 +134,9 @@ export const ordersTools: WafleTool[] = [
     scopes: ["orders:write"],
     annotations: { destructiveHint: false, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, order_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, order_id, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/orders/${order_id}/ship`,
         body,
@@ -147,7 +157,9 @@ export const ordersTools: WafleTool[] = [
     scopes: ["orders:write"],
     annotations: { destructiveHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, order_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, order_id, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/orders/${order_id}/cancel`,
         body,
@@ -168,7 +180,9 @@ export const ordersTools: WafleTool[] = [
     scopes: ["orders:refund"],
     annotations: { destructiveHint: true, idempotentHint: false },
     handler: async (input, ctx) => {
-      const { slug, order_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, order_id, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/orders/${order_id}/refund`,
         body,
@@ -187,11 +201,14 @@ export const ordersTools: WafleTool[] = [
     }),
     scopes: ["orders:write"],
     annotations: { destructiveHint: false, idempotentHint: false },
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/orders/${input.order_id}/note`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/orders/${input.order_id}/note`,
         { text: input.text, customer: input.customer_visible },
-      ),
+      );
+    },
   },
   {
     name: "wafle_orders_timeline",
@@ -201,9 +218,12 @@ export const ordersTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, order_id: z.number().int().positive() }),
     scopes: ["orders:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/orders/${input.order_id}/timeline`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/orders/${input.order_id}/timeline`,
+      );
+    },
   },
 ];

@@ -17,6 +17,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const MetaCampaignId = z
   .string()
@@ -41,9 +42,10 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:write"],
     annotations: { destructiveHint: true, idempotentHint: true, title: "Wafle: pause Meta campaign" },
     handler: async (input, ctx) => {
-      const { slug, campaign_id } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       return ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(slug)}/ads/campaigns/${encodeURIComponent(campaign_id)}/pause`,
+        `/stores/${encodeURIComponent(slug)}/ads/campaigns/${encodeURIComponent(input.campaign_id)}/pause`,
         {},
       );
     },
@@ -60,9 +62,10 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:write"],
     annotations: { destructiveHint: false, idempotentHint: true, title: "Wafle: resume Meta campaign" },
     handler: async (input, ctx) => {
-      const { slug, campaign_id } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       return ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(slug)}/ads/campaigns/${encodeURIComponent(campaign_id)}/resume`,
+        `/stores/${encodeURIComponent(slug)}/ads/campaigns/${encodeURIComponent(input.campaign_id)}/resume`,
         {},
       );
     },
@@ -91,7 +94,9 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:write"],
     annotations: { destructiveHint: true, idempotentHint: false, title: "Wafle: update Meta campaign budget" },
     handler: async (input, ctx) => {
-      const { slug, campaign_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, campaign_id, ...body } = input;
       if (!body.daily_budget_cents && !body.lifetime_budget_cents) {
         return { ok: false, errors: ["must pass daily_budget_cents or lifetime_budget_cents"] };
       }
@@ -113,10 +118,11 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:write"],
     annotations: { destructiveHint: true, idempotentHint: true, title: "Wafle: bulk pause Meta campaigns" },
     handler: async (input, ctx) => {
-      const { slug, campaign_ids } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/ads/campaigns/bulk-pause`,
-        { campaign_ids },
+        { campaign_ids: input.campaign_ids },
       );
     },
   },
@@ -135,7 +141,9 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: list ads recommendations" },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/ads/recommendations`, { query });
     },
   },
@@ -151,9 +159,10 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:write"],
     annotations: { destructiveHint: true, idempotentHint: true, title: "Wafle: apply ads recommendation" },
     handler: async (input, ctx) => {
-      const { slug, recommendation_id } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       return ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(slug)}/ads/recommendations/${recommendation_id}/apply`,
+        `/stores/${encodeURIComponent(slug)}/ads/recommendations/${input.recommendation_id}/apply`,
         {},
       );
     },
@@ -175,7 +184,9 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: list ads anomalies" },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/ads/anomalies`, { query });
     },
   },
@@ -191,7 +202,9 @@ export const adsWriterTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: ads performance summary" },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/ads/summary`, { query });
     },
   },

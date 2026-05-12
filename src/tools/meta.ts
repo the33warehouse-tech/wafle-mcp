@@ -14,6 +14,7 @@ import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
 import { makeMcpProgressEmitter, pollWithProgress } from "../utils/progress.js";
 import { createPromptRegistry } from "../prompts/index.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 // Prompt registry is stateless once built — singleton fine.
 const PROMPT_REGISTRY_SINGLETON = createPromptRegistry();
@@ -61,8 +62,10 @@ export const metaTools: WafleTool[] = [
     scopes: ["products:admin"],
     annotations: { destructiveHint: false, idempotentHint: false, title: "Wafle: sync products + wait" },
     handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       const triggerResp = await ctx.client.post<{ job_id?: string; id?: string; mode?: string }>(
-        `/stores/${encodeURIComponent(input.slug)}/products/sync`,
+        `/stores/${encodeURIComponent(slug)}/products/sync`,
         { mode: input.mode },
       );
       const jobId = triggerResp.job_id ?? triggerResp.id;
@@ -83,7 +86,7 @@ export const metaTools: WafleTool[] = [
       const result = await pollWithProgress(ctx.client, opts);
       // Best-effort cache invalidation after a successful sync.
       if (result.terminal && !["failed", "error", "cancelled", "canceled"].includes(result.status) && ctx.resources) {
-        ctx.resources.invalidate(input.slug);
+        ctx.resources.invalidate(slug);
       }
       return {
         ok: result.terminal && !["failed", "error", "cancelled", "canceled"].includes(result.status),
@@ -113,8 +116,10 @@ export const metaTools: WafleTool[] = [
     scopes: ["products:admin"],
     annotations: { destructiveHint: false, idempotentHint: false, title: "Wafle: import CSV (long-running)" },
     handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       const triggerResp = await ctx.client.post<{ run_id?: string; id?: string; job_id?: string }>(
-        `/stores/${encodeURIComponent(input.slug)}/csv/import`,
+        `/stores/${encodeURIComponent(slug)}/csv/import`,
         {
           url: input.csv_url,
           ...(input.mapping ? { mapping: input.mapping } : {}),
@@ -137,7 +142,7 @@ export const metaTools: WafleTool[] = [
       if (onProgress) opts.onProgress = onProgress;
       const result = await pollWithProgress(ctx.client, opts);
       if (result.terminal && !["failed", "error", "cancelled", "canceled"].includes(result.status) && ctx.resources) {
-        ctx.resources.invalidate(input.slug);
+        ctx.resources.invalidate(slug);
       }
       return {
         ok: result.terminal && !["failed", "error", "cancelled", "canceled"].includes(result.status),

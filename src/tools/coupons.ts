@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const CouponType = z.enum(["percentage", "fixed", "free_shipping"]);
 
@@ -13,8 +14,11 @@ export const couponsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug }),
     scopes: ["coupons:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/coupons`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/coupons`);
+    },
   },
   {
     name: "wafle_coupons_create",
@@ -41,7 +45,9 @@ export const couponsTools: WafleTool[] = [
     scopes: ["coupons:write"],
     annotations: { destructiveHint: false, idempotentHint: false },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/coupons`, body);
     },
   },
@@ -59,7 +65,9 @@ export const couponsTools: WafleTool[] = [
     scopes: ["coupons:write"],
     annotations: { idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, coupon_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, coupon_id, ...body } = input;
       return ctx.client.patch<unknown>(
         `/stores/${encodeURIComponent(slug)}/coupons/${coupon_id}`,
         body,
@@ -72,9 +80,12 @@ export const couponsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, coupon_id: z.number().int().positive() }),
     scopes: ["coupons:write"],
     annotations: { destructiveHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.delete<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/coupons/${input.coupon_id}`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.delete<unknown>(
+        `/stores/${encodeURIComponent(slug)}/coupons/${input.coupon_id}`,
+      );
+    },
   },
 ];

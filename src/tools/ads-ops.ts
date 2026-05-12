@@ -34,6 +34,7 @@ import { z } from "zod";
 import type { WafleTool, ToolContext } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
 import { WafleApiError } from "../client/errors.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const RangeShortcut = z
   .enum(["1d", "7d", "14d", "28d", "30d", "90d"])
@@ -110,7 +111,9 @@ export const adsOpsTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: ads breakdown by creative" },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return realOrMock(
         ctx,
         () =>
@@ -185,7 +188,9 @@ export const adsOpsTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: propose ads pauses" },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return realOrMock(
         ctx,
         () =>
@@ -271,7 +276,9 @@ export const adsOpsTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: audience overlap matrix" },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return realOrMock(
         ctx,
         () =>
@@ -331,7 +338,9 @@ export const adsOpsTools: WafleTool[] = [
     scopes: ["ads:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: creative performance log" },
     handler: async (input, ctx) => {
-      const { slug, creative_id, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, creative_id, ...query } = input;
       return realOrMock(
         ctx,
         () =>
@@ -380,7 +389,9 @@ export const adsOpsTools: WafleTool[] = [
     scopes: ["ads:read", "analytics:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: monthly ads report" },
     handler: async (input, ctx) => {
-      const { slug, month } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { month } = input;
       // Resolve [first day, last day] of month.
       const [yStr, mStr] = month.split("-");
       const y = Number(yStr);
@@ -476,7 +487,9 @@ export const adsOpsTools: WafleTool[] = [
     scopes: ["ads:read", "analytics:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: compare ad periods" },
     handler: async (input, ctx) => {
-      const { slug, period_a, period_b } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { period_a, period_b } = input;
       const flatten = (p: typeof period_a): { start: string; end: string } => {
         if ("month" in p) {
           const [yStr, mStr] = p.month.split("-");

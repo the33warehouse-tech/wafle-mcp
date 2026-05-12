@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const ExportFormat = z.enum(["csv", "json"]).default("csv");
 
@@ -19,7 +20,9 @@ export const exportsTools: WafleTool[] = [
     scopes: ["customers:export"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/exports/customers`, { query: rest });
     },
   },
@@ -37,7 +40,9 @@ export const exportsTools: WafleTool[] = [
     scopes: ["customers:export"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/exports/meta-audience`, { query: rest });
     },
   },
@@ -53,7 +58,9 @@ export const exportsTools: WafleTool[] = [
     scopes: ["customers:export"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/exports/google-ads`, { query: rest });
     },
   },

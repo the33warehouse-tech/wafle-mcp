@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 /**
  * Custom Domains v1 tools.
@@ -36,11 +37,13 @@ export const domainsTools: WafleTool[] = [
     scopes: ["domains:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: list custom domains" },
     handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       const qs = new URLSearchParams();
       if (input.status) qs.set("status", input.status);
       if (input.limit) qs.set("limit", String(input.limit));
       const tail = qs.toString() ? `?${qs.toString()}` : "";
-      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/domains${tail}`);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/domains${tail}`);
     },
   },
   {
@@ -70,7 +73,9 @@ export const domainsTools: WafleTool[] = [
     scopes: ["domains:write"],
     annotations: { destructiveHint: false, idempotentHint: false, title: "Wafle: add custom domain" },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/domains`, body);
     },
   },
@@ -90,7 +95,9 @@ export const domainsTools: WafleTool[] = [
     scopes: ["domains:write"],
     annotations: { idempotentHint: true, title: "Wafle: verify + provision domain" },
     handler: async (input, ctx) => {
-      return ctx.client.post<unknown>(`/stores/${encodeURIComponent(input.slug)}/domains/${input.id}/verify`, {});
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/domains/${input.id}/verify`, {});
     },
   },
   {
@@ -106,13 +113,15 @@ export const domainsTools: WafleTool[] = [
     scopes: ["domains:read"],
     annotations: { readOnlyHint: true, idempotentHint: true, title: "Wafle: domain status" },
     handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       const head = await ctx.client.get<Record<string, unknown>>(
-        `/stores/${encodeURIComponent(input.slug)}/domains/${input.id}`,
+        `/stores/${encodeURIComponent(slug)}/domains/${input.id}`,
       );
       if (input.include_log) {
         try {
           const log = await ctx.client.get<unknown>(
-            `/stores/${encodeURIComponent(input.slug)}/domains/${input.id}/log?limit=20`,
+            `/stores/${encodeURIComponent(slug)}/domains/${input.id}/log?limit=20`,
           );
           (head as Record<string, unknown>).recent_log = log;
         } catch (e) {

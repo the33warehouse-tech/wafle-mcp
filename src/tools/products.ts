@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug, Pagination } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 export const productsTools: WafleTool[] = [
   {
@@ -21,7 +22,9 @@ export const productsTools: WafleTool[] = [
     scopes: ["products:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/products`, { query: rest });
     },
   },
@@ -36,10 +39,13 @@ export const productsTools: WafleTool[] = [
     }),
     scopes: ["products:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/products`, {
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/products`, {
         query: { search: input.q, per_page: input.limit, page: 1 },
-      }),
+      });
+    },
   },
   {
     name: "wafle_products_get",
@@ -51,10 +57,13 @@ export const productsTools: WafleTool[] = [
     }),
     scopes: ["products:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/products/${encodeURIComponent(input.product_slug)}`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/products/${encodeURIComponent(input.product_slug)}`,
+      );
+    },
   },
   {
     name: "wafle_products_create_manual",
@@ -75,7 +84,9 @@ export const productsTools: WafleTool[] = [
     scopes: ["products:write"],
     annotations: { destructiveHint: false, idempotentHint: false },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/products`, body);
     },
   },
@@ -97,7 +108,9 @@ export const productsTools: WafleTool[] = [
     scopes: ["products:write"],
     annotations: { idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, product_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, product_id, ...body } = input;
       return ctx.client.patch<unknown>(
         `/stores/${encodeURIComponent(slug)}/products/${product_id}`,
         body,
@@ -116,11 +129,14 @@ export const productsTools: WafleTool[] = [
     }),
     scopes: ["products:write"],
     annotations: { idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.patch<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/products/${input.product_id}`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.patch<unknown>(
+        `/stores/${encodeURIComponent(slug)}/products/${input.product_id}`,
         { overrides: input.overrides },
-      ),
+      );
+    },
   },
   {
     name: "wafle_products_sync_trigger",
@@ -133,10 +149,13 @@ export const productsTools: WafleTool[] = [
     }),
     scopes: ["products:admin"],
     annotations: { idempotentHint: false, destructiveHint: false },
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(`/stores/${encodeURIComponent(input.slug)}/products/sync`, {
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/products/sync`, {
         mode: input.mode,
-      }),
+      });
+    },
   },
   {
     name: "wafle_products_sync_status",

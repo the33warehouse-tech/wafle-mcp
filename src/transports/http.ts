@@ -51,12 +51,20 @@ export async function startHttp(opts: HttpServerOptions): Promise<FastifyInstanc
     trustProxy: true,
     bodyLimit: 4 * 1024 * 1024,
   });
+  const allowedOrigins = (process.env.WAFLE_MCP_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   await fastify.register(cors, {
-    origin: true,
-    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    origin: allowedOrigins.length > 0
+      ? allowedOrigins
+      : false, // refuse cross-origin entirely if not configured
+    credentials: false,
+    methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept", "Mcp-Session-Id", "Last-Event-ID"],
     exposedHeaders: ["Mcp-Session-Id"],
-    credentials: false,
+    maxAge: 600,
   });
 
   function authenticate(
