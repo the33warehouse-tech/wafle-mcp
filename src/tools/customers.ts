@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug, Pagination } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 export const customersTools: WafleTool[] = [
   {
@@ -18,7 +19,9 @@ export const customersTools: WafleTool[] = [
     scopes: ["customers:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/customers`, { query: rest });
     },
   },
@@ -29,10 +32,13 @@ export const customersTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, email: z.string().email() }),
     scopes: ["customers:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/customers/${encodeURIComponent(input.email)}/360`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/customers/${encodeURIComponent(input.email)}/360`,
+      );
+    },
   },
   {
     name: "wafle_customers_orders",
@@ -45,10 +51,13 @@ export const customersTools: WafleTool[] = [
     }),
     scopes: ["customers:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/orders`, {
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/orders`, {
         query: { email: input.email, page: input.page, per_page: input.per_page },
-      }),
+      });
+    },
   },
   {
     name: "wafle_customers_segments_list",
@@ -57,7 +66,10 @@ export const customersTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug }),
     scopes: ["customers:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/segments`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/segments`);
+    },
   },
 ];

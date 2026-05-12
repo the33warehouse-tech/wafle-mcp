@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug, Pagination } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const Locale = z
   .string()
@@ -39,7 +40,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: { idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/ai/translate`, body);
     },
   },
@@ -54,9 +57,10 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, natural_language } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/ai/segment-compile`, {
-        natural_language,
+        natural_language: input.natural_language,
       });
     },
   },
@@ -75,7 +79,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, sku, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, sku, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/ai/products/${encodeURIComponent(sku)}/describe`,
         body,
@@ -94,7 +100,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, sku, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, sku, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/ai/products/${encodeURIComponent(sku)}/review-summary`,
         body,
@@ -120,7 +128,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/ai/jobs`, {
         job_type: "categorize",
         input: body,
@@ -151,7 +161,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/ai/jobs`, {
         job_type: "support_hint",
         input: body,
@@ -182,7 +194,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...query } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...query } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/ai/jobs`, { query });
     },
   },
@@ -195,8 +209,11 @@ export const aiTools: WafleTool[] = [
     }),
     scopes: ["ai:use"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/ai/jobs/${input.id}`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/ai/jobs/${input.id}`);
+    },
   },
   {
     name: "wafle_ai_jobs_accept",
@@ -212,11 +229,14 @@ export const aiTools: WafleTool[] = [
     }),
     scopes: ["ai:use"],
     annotations: {},
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/ai/jobs/${input.id}/accept`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/ai/jobs/${input.id}/accept`,
         {},
-      ),
+      );
+    },
   },
   {
     name: "wafle_ai_jobs_reject",
@@ -229,7 +249,9 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, id, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/ai/jobs/${id}/reject`,
         body,
@@ -248,10 +270,11 @@ export const aiTools: WafleTool[] = [
     scopes: ["ai:use"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, id, user_edits } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
       return ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(slug)}/ai/jobs/${id}/edit`,
-        { user_edits },
+        `/stores/${encodeURIComponent(slug)}/ai/jobs/${input.id}/edit`,
+        { user_edits: input.user_edits },
       );
     },
   },
@@ -264,9 +287,12 @@ export const aiTools: WafleTool[] = [
     }),
     scopes: ["ai:use"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/ai/usage`, {
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/ai/usage`, {
         query: input.since ? { since: input.since } : undefined,
-      }),
+      });
+    },
   },
 ];

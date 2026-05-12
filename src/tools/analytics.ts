@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const Range = z.enum(["1d", "7d", "30d", "90d", "ytd", "custom"]).describe("Predefined window or 'custom' (then provide from_ts/to_ts).");
 
@@ -19,7 +20,9 @@ export const analyticsTools: WafleTool[] = [
     scopes: ["analytics:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/analytics`, { query: rest });
     },
   },
@@ -38,7 +41,9 @@ export const analyticsTools: WafleTool[] = [
     scopes: ["analytics:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...rest } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...rest } = input;
       return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/analytics`, { query: { ...rest, group: rest.bucket } });
     },
   },

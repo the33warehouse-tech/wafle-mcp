@@ -75,6 +75,10 @@ WAFLE_MCP_REQUIRE_JWT=1                                 # refuses legacy bearers
 # Legacy admin-tier bearers (cross-tenant). Used as fallback when REQUIRE_JWT is unset.
 WAFLE_MCP_TOKENS=<comma-separated bearer tokens>
 
+# CORS allowlist for --transport=http. Comma-separated origins.
+# Leave empty to refuse all cross-origin requests (recommended for private deployments).
+WAFLE_MCP_ALLOWED_ORIGINS=https://app.wafle.click,https://dashboard.wafle.click
+
 LOG_LEVEL=info
 ```
 

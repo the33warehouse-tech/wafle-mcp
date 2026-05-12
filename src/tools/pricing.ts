@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const RuleType = z.enum(["multiplier", "discount_tier", "category_markup", "fixed_price"]);
 
@@ -13,8 +14,11 @@ export const pricingTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug }),
     scopes: ["pricing:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/v2/pricing-rules`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/v2/pricing-rules`);
+    },
   },
   {
     name: "wafle_pricing_rules_create",
@@ -41,7 +45,9 @@ export const pricingTools: WafleTool[] = [
     scopes: ["pricing:write"],
     annotations: { idempotentHint: false },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/v2/pricing-rules`, body);
     },
   },
@@ -58,7 +64,9 @@ export const pricingTools: WafleTool[] = [
     scopes: ["pricing:write"],
     annotations: { idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, rule_id, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, rule_id, ...body } = input;
       return ctx.client.patch<unknown>(
         `/stores/${encodeURIComponent(slug)}/v2/pricing-rules/${rule_id}`,
         body,
@@ -71,10 +79,13 @@ export const pricingTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, rule_id: z.number().int().positive() }),
     scopes: ["pricing:write"],
     annotations: { destructiveHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.delete<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/v2/pricing-rules/${input.rule_id}`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.delete<unknown>(
+        `/stores/${encodeURIComponent(slug)}/v2/pricing-rules/${input.rule_id}`,
+      );
+    },
   },
   {
     name: "wafle_pricing_compute_preview",
@@ -94,10 +105,13 @@ export const pricingTools: WafleTool[] = [
     }),
     scopes: ["pricing:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/pricing/preview`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/pricing/preview`,
         { items: input.items },
-      ),
+      );
+    },
   },
 ];

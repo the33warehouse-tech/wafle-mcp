@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 export const pixelsTools: WafleTool[] = [
   {
@@ -10,8 +11,11 @@ export const pixelsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug }),
     scopes: ["pixels:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(`/stores/${encodeURIComponent(input.slug)}/pixels`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(`/stores/${encodeURIComponent(slug)}/pixels`);
+    },
   },
   {
     name: "wafle_pixels_set",
@@ -27,7 +31,9 @@ export const pixelsTools: WafleTool[] = [
     scopes: ["pixels:write"],
     annotations: { idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       // Map to wafle's flat field names on the store record (pixel_meta, pixel_tiktok, etc.).
       const payload: Record<string, unknown> = {};
       if ("meta" in body) payload["pixel_meta"] = body.meta;

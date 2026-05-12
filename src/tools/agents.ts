@@ -8,6 +8,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug, Pagination } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 const AgentSlug = z
   .string()
@@ -45,7 +46,9 @@ export const agentsTools: WafleTool[] = [
     scopes: ["agents:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, status, trigger_type } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { status, trigger_type } = input;
       const query: Record<string, string> = {};
       if (status) query.status = status;
       if (trigger_type) query.trigger_type = trigger_type;
@@ -59,10 +62,13 @@ export const agentsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, agent_slug: AgentSlug }),
     scopes: ["agents:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agents/${encodeURIComponent(input.agent_slug)}`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agents/${encodeURIComponent(input.agent_slug)}`,
+      );
+    },
   },
   {
     name: "wafle_agents_create",
@@ -97,7 +103,9 @@ export const agentsTools: WafleTool[] = [
     scopes: ["agents:write"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/agents`, body);
     },
   },
@@ -126,11 +134,14 @@ export const agentsTools: WafleTool[] = [
     }),
     scopes: ["agents:write"],
     annotations: {},
-    handler: async (input, ctx) =>
-      ctx.client.patch<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agents/${encodeURIComponent(input.agent_slug)}`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.patch<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agents/${encodeURIComponent(input.agent_slug)}`,
         input.patch,
-      ),
+      );
+    },
   },
   {
     name: "wafle_agents_activate",
@@ -139,11 +150,14 @@ export const agentsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, agent_slug: AgentSlug }),
     scopes: ["agents:write"],
     annotations: {},
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agents/${encodeURIComponent(input.agent_slug)}/activate`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agents/${encodeURIComponent(input.agent_slug)}/activate`,
         {},
-      ),
+      );
+    },
   },
   {
     name: "wafle_agents_pause",
@@ -151,11 +165,14 @@ export const agentsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, agent_slug: AgentSlug }),
     scopes: ["agents:write"],
     annotations: {},
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agents/${encodeURIComponent(input.agent_slug)}/pause`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agents/${encodeURIComponent(input.agent_slug)}/pause`,
         {},
-      ),
+      );
+    },
   },
   {
     name: "wafle_agents_run",
@@ -170,7 +187,9 @@ export const agentsTools: WafleTool[] = [
     scopes: ["agents:write"],
     annotations: {},
     handler: async (input, ctx) => {
-      const { slug, agent_slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, agent_slug, ...body } = input;
       return ctx.client.post<unknown>(
         `/stores/${encodeURIComponent(slug)}/agents/${encodeURIComponent(agent_slug)}/run`,
         body,
@@ -193,7 +212,9 @@ export const agentsTools: WafleTool[] = [
     scopes: ["agents:read"],
     annotations: { readOnlyHint: true },
     handler: async (input, ctx) => {
-      const { slug, agent_slug, page, per_page, status } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { agent_slug, page, per_page, status } = input;
       const query: Record<string, string | number> = { page, per_page };
       if (status) query.status = status;
       return ctx.client.get<unknown>(
@@ -212,10 +233,13 @@ export const agentsTools: WafleTool[] = [
     }),
     scopes: ["agents:read"],
     annotations: { readOnlyHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agent-runs/${input.run_id}`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agent-runs/${input.run_id}`,
+      );
+    },
   },
   {
     name: "wafle_agents_runs_approve",
@@ -228,11 +252,14 @@ export const agentsTools: WafleTool[] = [
     }),
     scopes: ["agents:write"],
     annotations: { destructiveHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agent-runs/${input.run_id}/approve`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agent-runs/${input.run_id}/approve`,
         { note: input.note },
-      ),
+      );
+    },
   },
   {
     name: "wafle_agents_runs_reject",
@@ -245,11 +272,14 @@ export const agentsTools: WafleTool[] = [
     }),
     scopes: ["agents:write"],
     annotations: {},
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agent-runs/${input.run_id}/reject`,
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agent-runs/${input.run_id}/reject`,
         { note: input.note },
-      ),
+      );
+    },
   },
   {
     name: "wafle_agents_templates",
@@ -276,9 +306,12 @@ export const agentsTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug, agent_slug: AgentSlug }),
     scopes: ["agents:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.get<unknown>(
-        `/stores/${encodeURIComponent(input.slug)}/agents/${encodeURIComponent(input.agent_slug)}/stats`,
-      ),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.get<unknown>(
+        `/stores/${encodeURIComponent(slug)}/agents/${encodeURIComponent(input.agent_slug)}/stats`,
+      );
+    },
   },
 ];

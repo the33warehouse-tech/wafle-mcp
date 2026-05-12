@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { WafleTool } from "./registry.js";
 import { StoreSlug } from "../schemas/common.js";
+import { resolveSlug, isTenantSlugError } from "./tenant-helper.js";
 
 export const shippingTools: WafleTool[] = [
   {
@@ -30,7 +31,9 @@ export const shippingTools: WafleTool[] = [
     scopes: ["shipping:quote"],
     annotations: { readOnlyHint: true, idempotentHint: true },
     handler: async (input, ctx) => {
-      const { slug, ...body } = input;
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      const { slug: _s, ...body } = input;
       return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/shipping/rates`, body);
     },
   },
@@ -42,7 +45,10 @@ export const shippingTools: WafleTool[] = [
     inputSchema: z.object({ slug: StoreSlug }),
     scopes: ["shipping:read"],
     annotations: { readOnlyHint: true, idempotentHint: true },
-    handler: async (input, ctx) =>
-      ctx.client.post<unknown>(`/stores/${encodeURIComponent(input.slug)}/shipping/test`),
+    handler: async (input, ctx) => {
+      const slug = resolveSlug(input.slug, ctx);
+      if (isTenantSlugError(slug)) throw new Error(slug.message);
+      return ctx.client.post<unknown>(`/stores/${encodeURIComponent(slug)}/shipping/test`);
+    },
   },
 ];
