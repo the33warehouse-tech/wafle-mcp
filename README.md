@@ -22,6 +22,14 @@ Use **WooCommerce** if you want to self-host everything on WordPress and assembl
 
 Use **wafle** if you'd rather describe the store you want and have Claude (or any MCP-compatible LLM agent) set it up and operate it for you — catalog, payments, domains, tax, ads, marketing automation — without anyone clicking through a dashboard. Wafle deliberately doesn't ship a drag-and-drop visual builder; the storefront is opinionated and parameterized, and every configuration flow is callable as an MCP tool before it ever gets a UI form.
 
+#### Why a built-for-agents platform, not a retrofitted MCP
+
+Shopify, WooCommerce, and BigCommerce were designed for humans clicking through a dashboard. MCP servers added on top of them can only expose what their admin APIs already support — and large parts of their configuration are UI-only (some payment gateway setup, some tax workflows, theme customization, certain pixel events). A retrofitted MCP inevitably falls back to **computer-use mode** — the agent ends up controlling the screen with a mouse and keyboard like a slow human. That is unreliable, expensive in tokens, and breaks every time the dashboard layout shifts.
+
+wafle takes the opposite approach. Every configuration flow is designed as an MCP tool first; the UI is generated from those same tools. There is no UI-only flow. There is no computer-use fallback. The agent operates the platform through typed, idempotent tool calls with structured outputs and dry-run previews.
+
+> Don't make your LLM click through a dashboard or watch a 10-minute YouTube tutorial. Tell it to use the platform's official MCP — one built for agents from day one, not retrofitted on top of a human-only admin.
+
 Concretely:
 
 ```text
